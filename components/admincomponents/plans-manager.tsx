@@ -370,8 +370,8 @@ export default function PlansManager() {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Información básica - 3 campos en una línea */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Información básica - 3 campos en una columna */}
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label>Nombre del Plan</Label>
                 <Input
