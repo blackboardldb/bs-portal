@@ -3,21 +3,19 @@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Users,
-  DollarSign,
-  Activity,
-  AlertTriangle,
-  Zap,
-  Target,
-  Heart,
-} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Users, DollarSign, AlertTriangle, Zap, Heart } from "lucide-react";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { FitCenterUserProfile } from "@/lib/types";
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 
 export function AdminDashboard() {
-  const { users = [] } = useBlackSheepStore();
+  const { users = [], fetchUsers } = useBlackSheepStore();
+
+  // Cargar datos de usuarios al montar el componente
+  useEffect(() => {
+    fetchUsers(1, 1000); // Cargar todos los usuarios para el dashboard
+  }, [fetchUsers]);
 
   // Memoizar estadísticas principales
   const stats = useMemo(() => {
@@ -51,44 +49,20 @@ export function AdminDashboard() {
     expiredMembers,
   } = stats;
 
-  // Memoizar cálculos de ingresos y métricas
-  const revenueAndMetrics = useMemo(() => {
+  // Memoizar cálculos de ingresos
+  const revenueMetrics = useMemo(() => {
     const monthlyRevenue = users
       .filter((s: FitCenterUserProfile) => s.membership?.status === "active")
       .reduce((sum: number, student: FitCenterUserProfile) => {
         return sum + (student.membership?.monthlyPrice || 0);
       }, 0);
 
-    const totalClassesThisMonth = users
-      .filter((s: FitCenterUserProfile) => s.membership?.status === "active")
-      .reduce((sum: number, student: FitCenterUserProfile) => {
-        return (
-          sum +
-          (student.membership?.centerStats?.currentMonth?.classesAttended || 0)
-        );
-      }, 0);
-
-    const averageClassesPerMember =
-      activeMembers > 0
-        ? (totalClassesThisMonth / activeMembers).toFixed(1)
-        : "0";
-
     return {
       monthlyRevenue,
-      totalClassesThisMonth,
-      averageClassesPerMember,
     };
-  }, [users, activeMembers]);
+  }, [users]);
 
-  const { monthlyRevenue, totalClassesThisMonth, averageClassesPerMember } =
-    revenueAndMetrics;
-
-  // Miembros con bajo aprovechamiento (menos de 2 clases este mes)
-  const lowUtilizationMembers = users.filter(
-    (s: FitCenterUserProfile) =>
-      s.membership?.status === "active" &&
-      (s.membership?.centerStats?.currentMonth?.classesAttended || 0) < 2
-  ).length;
+  const { monthlyRevenue } = revenueMetrics;
 
   // Tasa de retención (miembros activos vs total)
   const retentionRate =
@@ -97,7 +71,7 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6 mb-16">
       {/* Estadísticas Principales */}
-      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -132,21 +106,6 @@ export function AdminDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Clases Este Mes
-            </CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalClassesThisMonth}</div>
-            <p className="text-xs text-muted-foreground">
-              {averageClassesPerMember} promedio por miembro
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Membresías</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -158,7 +117,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Métricas de Engagement */}
-      <div className="grid gap-2 grid-cols-3">
+      <div className="grid gap-2 grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -169,21 +128,6 @@ export function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">Este mes</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-balance">
-              Alumnos con baja asistencia
-            </CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{lowUtilizationMembers}</div>
-            <p className="text-xs text-muted-foreground">
-              Miembros activos con menos de 2 clases este mes
-            </p>
           </CardContent>
         </Card>
 

@@ -78,7 +78,7 @@ export default function Page() {
         instructor: instructorName,
         duration: "60 min",
         alumnRegistred: `${session.registeredParticipantsIds.length}/${
-          session.maxParticipants || 15
+          session.capacity || 15
         }`,
         isRegistered: session.registeredParticipantsIds.includes(
           currentUser.id
