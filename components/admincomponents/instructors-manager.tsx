@@ -30,24 +30,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, Search } from "lucide-react";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { Instructor } from "@/lib/types";
-import { usePagination, usePaginationControls } from "@/lib/use-pagination";
 
 export function InstructorsManager() {
   const {
-    instructors,
+    instructors = [],
     disciplines,
     addInstructor,
     updateInstructor,
     deleteInstructor,
     fetchDisciplines,
+    fetchInstructors,
+    instructorsPagination,
   } = useBlackSheepStore();
 
-  // Estado de paginación
-  const limit = 10; // 10 instructores por página
+  // Estado de paginación y filtros
   const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("todos");
+  const [activeFilter, setActiveFilter] = useState("todos");
+  const limit = 10;
 
   const [editingInstructor, setEditingInstructor] = useState<Instructor | null>(
     null
@@ -59,23 +63,21 @@ export function InstructorsManager() {
     fetchDisciplines();
   }, [fetchDisciplines]);
 
-  const { paginationData, currentPageItems: currentPageInstructors } =
-    usePagination({
-      items: instructors || [],
+  // Cargar instructores al montar el componente y cuando cambian filtros/página
+  useEffect(() => {
+    fetchInstructors(
       page,
-      pageSize: limit,
-    });
+      limit,
+      searchTerm,
+      roleFilter !== "todos" ? roleFilter : "",
+      activeFilter !== "todos" ? activeFilter : ""
+    );
+  }, [page, searchTerm, roleFilter, activeFilter, fetchInstructors]);
 
-  const { goToNextPage, goToPrevPage } = usePaginationControls(
-    paginationData.currentPage,
-    paginationData.totalPages,
-    setPage
-  );
-
-  // Resetear página si cambia la cantidad de instructores
+  // Resetear página si cambia el filtro de búsqueda o estado
   useEffect(() => {
     setPage(1);
-  }, [paginationData.totalItems]);
+  }, [searchTerm, roleFilter, activeFilter]);
 
   const handleSaveInstructor = (instructorData: Partial<Instructor>) => {
     if (editingInstructor) {
@@ -102,10 +104,28 @@ export function InstructorsManager() {
       addInstructor(newInstructor);
       setIsAddingInstructor(false);
     }
+
+    // Refrescar la lista después de agregar/editar
+    fetchInstructors(
+      page,
+      limit,
+      searchTerm,
+      roleFilter !== "todos" ? roleFilter : "",
+      activeFilter !== "todos" ? activeFilter : ""
+    );
   };
 
   const handleDeleteInstructor = (instructorId: string) => {
     deleteInstructor(instructorId);
+
+    // Refrescar la lista después de eliminar
+    fetchInstructors(
+      page,
+      limit,
+      searchTerm,
+      roleFilter !== "todos" ? roleFilter : "",
+      activeFilter !== "todos" ? activeFilter : ""
+    );
   };
 
   const InstructorForm = ({
@@ -340,37 +360,73 @@ export function InstructorsManager() {
         </Dialog>
       </div>
 
-      {/* Controles de paginación */}
-      {paginationData.totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 mb-2">
-          <p className="text-sm text-muted-foreground">
-            Mostrando {paginationData.startIndex + 1}-
-            {Math.min(paginationData.endIndex, paginationData.totalItems)} de{" "}
-            {paginationData.totalItems} instructores
-          </p>
+      {/* Filtros de búsqueda */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre o email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={roleFilter} onValueChange={setRoleFilter}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los roles</SelectItem>
+            <SelectItem value="coach">Coach</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={activeFilter} onValueChange={setActiveFilter}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los estados</SelectItem>
+            <SelectItem value="true">Activo</SelectItem>
+            <SelectItem value="false">Inactivo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Información de resultados */}
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-muted-foreground">
+          Mostrando {instructors.length} de {instructorsPagination?.total || 0}{" "}
+          instructores
+        </p>
+        {instructorsPagination && instructorsPagination.totalPages > 1 && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={goToPrevPage}
-              disabled={!paginationData.hasPrevPage}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
             >
               Anterior
             </Button>
             <span className="text-sm text-muted-foreground">
-              Página {paginationData.currentPage} de {paginationData.totalPages}
+              Página {page} de {instructorsPagination.totalPages}
             </span>
             <Button
               variant="outline"
               size="sm"
-              onClick={goToNextPage}
-              disabled={!paginationData.hasNextPage}
+              onClick={() =>
+                setPage((p) =>
+                  Math.min(instructorsPagination.totalPages, p + 1)
+                )
+              }
+              disabled={page === instructorsPagination.totalPages}
             >
               Siguiente
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <Card>
         <div className="overflow-x-auto">
@@ -386,17 +442,19 @@ export function InstructorsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {currentPageInstructors.length === 0 ? (
+              {instructors.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={6}
                     className="text-center py-8 text-muted-foreground"
                   >
-                    No hay instructores registrados
+                    {instructorsPagination?.total === 0
+                      ? "No se encontraron instructores"
+                      : "No hay instructores en esta página"}
                   </TableCell>
                 </TableRow>
               ) : (
-                currentPageInstructors.map((instructor) => (
+                instructors.map((instructor: Instructor) => (
                   <TableRow key={instructor.id}>
                     <TableCell className="font-medium">
                       {instructor.firstName} {instructor.lastName}

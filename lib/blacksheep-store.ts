@@ -36,6 +36,7 @@ interface BlackSheepStore {
   classSessions: ClassSession[];
   disciplines: Discipline[];
   instructors: Instructor[];
+  instructorsPagination: PaginationState | null; // NUEVO: Estado para la paginación de instructores
   plans: Plan[];
   initialOrganization: Organization | null;
   classRegistrations: any[];
@@ -74,7 +75,13 @@ interface BlackSheepStore {
   addInstructor: (instructor: Instructor) => void;
   updateInstructor: (instructor: Instructor) => void;
   deleteInstructor: (instructorId: string) => void;
-  fetchInstructors: () => void;
+  fetchInstructors: (
+    page?: number,
+    limit?: number,
+    search?: string,
+    role?: string,
+    isActive?: string
+  ) => Promise<void>;
 
   // Plan actions
   addPlan: (plan: Plan) => void;
@@ -107,7 +114,8 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       pagination: null, // NUEVO
       classSessions: initialClassSessions,
       disciplines: initialDisciplines,
-      instructors: initialInstructors,
+      instructors: [], // Ahora vacío para paginación
+      instructorsPagination: null, // NUEVO
       plans: initialPlans,
       initialOrganization: initialOrganization,
       classRegistrations: initialClassRegistrations,
@@ -228,9 +236,34 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         set((state) => ({
           instructors: state.instructors.filter((i) => i.id !== instructorId),
         })),
-      fetchInstructors: () => {
-        // In a real app, this would fetch from API
-        set({ instructors: initialInstructors });
+      fetchInstructors: async (
+        page = 1,
+        limit = 10,
+        search = "",
+        role = "",
+        isActive = ""
+      ) => {
+        try {
+          const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+          });
+          if (search) params.append("search", search);
+          if (role) params.append("role", role);
+          if (isActive) params.append("isActive", isActive);
+
+          const response = await fetch(`/api/instructors?${params.toString()}`);
+          if (!response.ok) throw new Error("Failed to fetch instructors");
+
+          const data = await response.json();
+          set({
+            instructors: data.instructors,
+            instructorsPagination: data.pagination,
+          });
+        } catch (error) {
+          console.error("Error fetching instructors:", error);
+          set({ instructors: [], instructorsPagination: null });
+        }
       },
 
       // Plan actions

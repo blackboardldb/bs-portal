@@ -8,6 +8,7 @@ import type {
   ClassSessionExtended,
   FitCenterUserProfile,
   Discipline,
+  Instructor,
 } from "./types";
 
 // Definir un tipo simple para notificaciones
@@ -117,11 +118,13 @@ class MockPrismaClient {
     classSession: ClassSessionExtended[];
     user: FitCenterUserProfile[];
     discipline: Discipline[];
+    instructor: Instructor[];
     notification: Notification[];
   } = {
     classSession: [],
     user: [...initialUsers],
     discipline: [...initialDisciplines],
+    instructor: [...initialInstructors],
     notification: [],
   };
 
@@ -427,6 +430,100 @@ class MockPrismaClient {
       return results;
     },
   };
+}
+
+// Funciones helper para instructores con paginación del servidor
+export function getInstructors(
+  page: number = 1,
+  limit: number = 10,
+  search: string = "",
+  role: string = "",
+  isActive?: string | null
+): Instructor[] {
+  let results = [...initialInstructors];
+
+  // Filtro de búsqueda
+  if (search) {
+    const searchLower = search.toLowerCase();
+    results = results.filter(
+      (instructor) =>
+        instructor.firstName.toLowerCase().includes(searchLower) ||
+        instructor.lastName.toLowerCase().includes(searchLower) ||
+        instructor.email.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Filtro por rol
+  if (role) {
+    results = results.filter((instructor) => instructor.role === role);
+  }
+
+  // Filtro por estado activo
+  if (isActive !== undefined && isActive !== null) {
+    const active = isActive === "true";
+    results = results.filter((instructor) => instructor.isActive === active);
+  }
+
+  // Aplicar paginación
+  const skip = (page - 1) * limit;
+  return results.slice(skip, skip + limit);
+}
+
+export function getInstructorsCount(
+  search: string = "",
+  role: string = "",
+  isActive?: string | null
+): number {
+  let results = [...initialInstructors];
+
+  // Aplicar los mismos filtros que en getInstructors
+  if (search) {
+    const searchLower = search.toLowerCase();
+    results = results.filter(
+      (instructor) =>
+        instructor.firstName.toLowerCase().includes(searchLower) ||
+        instructor.lastName.toLowerCase().includes(searchLower) ||
+        instructor.email.toLowerCase().includes(searchLower)
+    );
+  }
+
+  if (role) {
+    results = results.filter((instructor) => instructor.role === role);
+  }
+
+  if (isActive !== undefined && isActive !== null) {
+    const active = isActive === "true";
+    results = results.filter((instructor) => instructor.isActive === active);
+  }
+
+  return results.length;
+}
+
+export function addInstructor(instructor: Omit<Instructor, "id">): Instructor {
+  const newInstructor: Instructor = {
+    ...instructor,
+    id: `inst_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  };
+  initialInstructors.push(newInstructor);
+  return newInstructor;
+}
+
+export function updateInstructor(instructor: Instructor): Instructor {
+  const index = initialInstructors.findIndex((i) => i.id === instructor.id);
+  if (index === -1) {
+    throw new Error("Instructor not found");
+  }
+  initialInstructors[index] = instructor;
+  return instructor;
+}
+
+export function deleteInstructor(id: string): boolean {
+  const index = initialInstructors.findIndex((i) => i.id === id);
+  if (index === -1) {
+    return false;
+  }
+  initialInstructors.splice(index, 1);
+  return true;
 }
 
 export const prisma = new MockPrismaClient();
