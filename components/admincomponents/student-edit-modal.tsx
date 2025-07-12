@@ -9,12 +9,14 @@ interface StudentEditModalProps {
   student: FitCenterUserProfile | null;
   onEdit: (student: FitCenterUserProfile) => void;
   onClose: () => void;
+  onSuccess?: () => void; // Callback para refrescar la lista después de editar
 }
 
 export function StudentEditModal({
   student,
   onEdit,
   onClose,
+  onSuccess,
 }: StudentEditModalProps) {
   if (!student) return null;
 
@@ -28,6 +30,7 @@ export function StudentEditModal({
       onClose={onClose}
       initialStudent={student}
       onAddStudent={() => {}}
+      onSuccess={onSuccess}
     />
   );
 }

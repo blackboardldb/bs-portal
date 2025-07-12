@@ -39,6 +39,7 @@ interface AddStudentModalProps {
   plans: MembershipPlan[];
   onClose?: () => void;
   initialStudent?: FitCenterUserProfile;
+  onSuccess?: () => void; // Callback para refrescar la lista después de agregar/editar
 }
 
 // Función helper para crear el objeto studentData
@@ -127,6 +128,7 @@ export function AddStudentModal({
   plans = [],
   onClose,
   initialStudent,
+  onSuccess,
 }: AddStudentModalProps) {
   // El modal se abre cuando el usuario hace clic en el trigger o cuando se pasa initialStudent
   const [open, setOpen] = useState(false);
@@ -247,6 +249,9 @@ export function AddStudentModal({
     } else {
       onAddStudent(studentData);
     }
+
+    // Llamar al callback de éxito para refrescar la lista
+    onSuccess?.();
 
     setOpen(false);
   };

@@ -47,7 +47,13 @@ const formatDate = (dateString: string | undefined): string => {
 };
 
 export default function AlumnosPage() {
-  const { users = [], fetchUsers, pagination } = useBlackSheepStore();
+  const {
+    users = [],
+    fetchUsers,
+    pagination,
+    updateUser,
+    addUser,
+  } = useBlackSheepStore();
 
   // Estado de paginación y filtros
   const [page, setPage] = useState(1);
@@ -110,9 +116,19 @@ export default function AlumnosPage() {
                 .toString(36)
                 .substr(2, 9)}`,
             };
-            // fetchUsers se encargará de refrescar la lista
+            addUser(newStudent);
           }}
           plans={initialMembershipPlans}
+          onSuccess={() => {
+            // Refrescar la lista después de agregar/editar
+            fetchUsers(
+              page,
+              limit,
+              searchTerm,
+              undefined,
+              statusFilter !== "todos" ? statusFilter : undefined
+            );
+          }}
         />
       </div>
 
@@ -259,6 +275,16 @@ export default function AlumnosPage() {
         student={editingStudent}
         onEdit={(updatedStudent) => updateUser(updatedStudent)}
         onClose={handleCloseEditModal}
+        onSuccess={() => {
+          // Refrescar la lista después de editar
+          fetchUsers(
+            page,
+            limit,
+            searchTerm,
+            undefined,
+            statusFilter !== "todos" ? statusFilter : undefined
+          );
+        }}
       />
     </div>
   );
