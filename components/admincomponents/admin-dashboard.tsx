@@ -11,10 +11,22 @@ import { useMemo, useEffect, useState } from "react";
 
 export function AdminDashboard() {
   const { users = [], fetchUsers } = useBlackSheepStore();
+  const [isLoading, setIsLoading] = useState(true);
 
   // Cargar datos de usuarios al montar el componente
   useEffect(() => {
-    fetchUsers(1, 1000); // Cargar todos los usuarios para el dashboard
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await fetchUsers(1, 1000); // Cargar todos los usuarios para el dashboard
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
   }, [fetchUsers]);
 
   // Memoizar estadísticas principales
@@ -68,81 +80,87 @@ export function AdminDashboard() {
   const retentionRate =
     totalMembers > 0 ? ((activeMembers / totalMembers) * 100).toFixed(1) : "0";
 
+  // Componente de métrica con loader
+  const MetricCard = ({
+    title,
+    value,
+    subtitle,
+    icon: Icon,
+    isLoading = false,
+  }: {
+    title: string;
+    value: string | number;
+    subtitle: string;
+    icon: any;
+    isLoading?: boolean;
+  }) => (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <>
+            <Skeleton className="h-8 w-16 mb-1" />
+            <Skeleton className="h-3 w-24" />
+          </>
+        ) : (
+          <>
+            <div className="text-2xl font-bold">{value}</div>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-6 mb-16">
       {/* Estadísticas Principales */}
       <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Miembros
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalMembers}</div>
-            <p className="text-xs text-muted-foreground">
-              {activeMembers} activos ({retentionRate}% retención)
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Total Miembros"
+          value={totalMembers}
+          subtitle={`${activeMembers} activos (${retentionRate}% retención)`}
+          icon={Users}
+          isLoading={isLoading}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Ingresos Mensuales
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${monthlyRevenue.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {activeMembers} miembros activos
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Ingresos Mensuales"
+          value={`$${monthlyRevenue.toLocaleString()}`}
+          subtitle={`${activeMembers} miembros activos`}
+          icon={DollarSign}
+          isLoading={isLoading}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Membresías</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{expiredMembers}</div>
-            <p className="text-xs text-muted-foreground">Requieren atención</p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Membresías"
+          value={expiredMembers}
+          subtitle="Requieren atención"
+          icon={AlertTriangle}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Métricas de Engagement */}
       <div className="grid gap-2 grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Nuevos Miembros
-            </CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Este mes</p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Nuevos Miembros"
+          value="0"
+          subtitle="Este mes"
+          icon={Zap}
+          isLoading={isLoading}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Tasa de Retención
-            </CardTitle>
-            <Heart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{retentionRate}%</div>
-            <p className="text-xs text-muted-foreground">Miembros activos</p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title="Tasa de Retención"
+          value={`${retentionRate}%`}
+          subtitle="Miembros activos"
+          icon={Heart}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Breakdown por Estados */}
