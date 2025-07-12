@@ -91,7 +91,12 @@ interface BlackSheepStore {
   addPlan: (plan: Plan) => void;
   updatePlan: (plan: Plan) => void;
   deletePlan: (planId: string) => void;
-  fetchPlans: () => void;
+  fetchPlans: (
+    page?: number,
+    limit?: number,
+    search?: string,
+    isActive?: string
+  ) => Promise<void>;
 
   // Organization actions
   updateOrganization: (organization: Organization) => void;
@@ -120,7 +125,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       disciplines: [], // Ahora vacío para paginación
       instructors: [], // Ahora vacío para paginación
       instructorsPagination: null, // NUEVO
-      plans: initialPlans,
+      plans: [], // Ahora vacío para paginación
       initialOrganization: initialOrganization,
       classRegistrations: initialClassRegistrations,
       membershipRenewals: initialMembershipRenewals,
@@ -294,9 +299,24 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         set((state) => ({
           plans: state.plans.filter((p) => p.id !== planId),
         })),
-      fetchPlans: () => {
-        // In a real app, this would fetch from API
-        set({ plans: initialPlans });
+      fetchPlans: async (page = 1, limit = 10, search = "", isActive = "") => {
+        try {
+          const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+          });
+          if (search) params.append("search", search);
+          if (isActive) params.append("isActive", isActive);
+
+          const response = await fetch(`/api/plans?${params.toString()}`);
+          if (!response.ok) throw new Error("Failed to fetch plans");
+
+          const data = await response.json();
+          set({ plans: data.plans });
+        } catch (error) {
+          console.error("Error fetching plans:", error);
+          set({ plans: [] });
+        }
       },
 
       // Organization actions

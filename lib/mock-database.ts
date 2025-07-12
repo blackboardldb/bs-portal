@@ -3,12 +3,14 @@ import {
   initialUsers,
   initialDisciplines,
   initialInstructors,
+  initialMembershipPlans,
 } from "./mock-data";
 import type {
   ClassSessionExtended,
   FitCenterUserProfile,
   Discipline,
   Instructor,
+  MembershipPlan,
 } from "./types";
 
 // Definir un tipo simple para notificaciones
@@ -523,6 +525,91 @@ export function deleteInstructor(id: string): boolean {
     return false;
   }
   initialInstructors.splice(index, 1);
+  return true;
+}
+
+// Funciones helper para planes con paginación del servidor
+export function getPlans(
+  page: number = 1,
+  limit: number = 10,
+  search: string = "",
+  isActive?: string | null
+): MembershipPlan[] {
+  let results = [...initialMembershipPlans];
+
+  // Filtro de búsqueda
+  if (search) {
+    const searchLower = search.toLowerCase();
+    results = results.filter(
+      (plan) =>
+        plan.name.toLowerCase().includes(searchLower) ||
+        plan.description.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Filtro por estado activo
+  if (isActive !== undefined && isActive !== null) {
+    const active = isActive === "true";
+    results = results.filter((plan) => plan.isActive === active);
+  }
+
+  // Aplicar paginación
+  const skip = (page - 1) * limit;
+  return results.slice(skip, skip + limit);
+}
+
+export function getPlansCount(
+  search: string = "",
+  isActive?: string | null
+): number {
+  let results = [...initialMembershipPlans];
+
+  // Aplicar los mismos filtros que en getPlans
+  if (search) {
+    const searchLower = search.toLowerCase();
+    results = results.filter(
+      (plan) =>
+        plan.name.toLowerCase().includes(searchLower) ||
+        plan.description.toLowerCase().includes(searchLower)
+    );
+  }
+
+  if (isActive !== undefined && isActive !== null) {
+    const active = isActive === "true";
+    results = results.filter((plan) => plan.isActive === active);
+  }
+
+  return results.length;
+}
+
+export function addPlan(plan: Omit<MembershipPlan, "id">): MembershipPlan {
+  const newPlan: MembershipPlan = {
+    ...plan,
+    id: `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  };
+  initialMembershipPlans.push(newPlan);
+  return newPlan;
+}
+
+export function updatePlan(plan: MembershipPlan): MembershipPlan {
+  const index = initialMembershipPlans.findIndex(
+    (p: MembershipPlan) => p.id === plan.id
+  );
+  if (index === -1) {
+    throw new Error("Plan not found");
+  }
+  initialMembershipPlans[index] = plan;
+  return plan;
+}
+
+export function deletePlan(id: string): boolean {
+  const index = initialMembershipPlans.findIndex(
+    (p: MembershipPlan) => p.id === id
+  );
+  if (index === -1) {
+    return false;
+  }
+  initialMembershipPlans.splice(index, 1);
   return true;
 }
 

@@ -32,6 +32,7 @@ import {
   Calendar,
   Users,
   Settings,
+  Search,
 } from "lucide-react";
 
 const emptyPlan: Omit<MembershipPlan, "id" | "organizationId"> = {
@@ -70,9 +71,13 @@ export default function PlansManager() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<string | null>(null);
 
+  // Estados para filtros y búsqueda
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilter, setActiveFilter] = useState("todos");
+
   useEffect(() => {
-    fetchPlans();
-  }, [fetchPlans]);
+    fetchPlans(1, 50, searchTerm, activeFilter !== "todos" ? activeFilter : "");
+  }, [fetchPlans, searchTerm, activeFilter]);
 
   // --- Gestión de planes ---
   const handleNewPlan = () => {
@@ -107,6 +112,15 @@ export default function PlansManager() {
   const confirmDeletePlan = () => {
     if (planToDelete) {
       deletePlan(planToDelete);
+
+      // Refrescar la lista después de eliminar
+      fetchPlans(
+        1,
+        50,
+        searchTerm,
+        activeFilter !== "todos" ? activeFilter : ""
+      );
+
       setShowDeleteModal(false);
       setPlanToDelete(null);
       toast({
@@ -193,6 +207,9 @@ export default function PlansManager() {
       });
     }
 
+    // Refrescar la lista después de agregar/editar
+    fetchPlans(1, 50, searchTerm, activeFilter !== "todos" ? activeFilter : "");
+
     setShowPlanModal(false);
     setPlanForm(emptyPlan);
     setEditingPlan(null);
@@ -211,6 +228,29 @@ export default function PlansManager() {
         <Button onClick={handleNewPlan}>
           <Plus className="w-4 h-4 mr-2" /> Nuevo Plan
         </Button>
+      </div>
+
+      {/* Filtros de búsqueda */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre o descripción..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={activeFilter} onValueChange={setActiveFilter}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los estados</SelectItem>
+            <SelectItem value="true">Activo</SelectItem>
+            <SelectItem value="false">Inactivo</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Lista de planes */}
