@@ -24,7 +24,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { FitCenterUserProfile, MembershipPlan } from "@/lib/types";
-import { calcularFechaTerminoMembresia } from "@/lib/utils";
+import {
+  calcularFechaTerminoMembresia,
+  calcularClasesSegunDuracion,
+} from "@/lib/utils";
 import { MembershipDatePicker } from "./membership-date-picker";
 
 interface AddStudentModalProps {
@@ -92,8 +95,14 @@ const createStudentData = (
       centerStats: {
         currentMonth: {
           classesAttended: 0,
-          classesContracted: selectedPlan.classLimit,
-          remainingClasses: selectedPlan.classLimit,
+          classesContracted: calcularClasesSegunDuracion(
+            selectedPlan.classLimit,
+            selectedPlan.durationInMonths
+          ),
+          remainingClasses: calcularClasesSegunDuracion(
+            selectedPlan.classLimit,
+            selectedPlan.durationInMonths
+          ),
           noShows: 0,
           lastMinuteCancellations: 0,
         },

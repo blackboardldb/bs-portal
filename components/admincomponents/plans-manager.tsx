@@ -19,8 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
+import { calcularClasesSegunDuracion } from "@/lib/utils";
 import type { MembershipPlan } from "@/lib/types";
 import {
   Plus,
@@ -29,7 +31,6 @@ import {
   CreditCard,
   Calendar,
   Users,
-  Snowflake,
   Settings,
 } from "lucide-react";
 
@@ -41,14 +42,23 @@ const emptyPlan: Omit<MembershipPlan, "id" | "organizationId"> = {
   classLimit: 8,
   disciplineAccess: "all",
   allowedDisciplines: [],
-  canFreeze: false,
-  freezeDurationDays: 0,
-  autoRenews: true,
+  canFreeze: false, // Campo mantenido para compatibilidad pero no usado
+  freezeDurationDays: 0, // Campo mantenido para compatibilidad pero no usado
+  autoRenews: true, // Mantenemos el campo pero no lo mostramos en la UI
   isActive: true,
 };
 
+// Opciones de duración predefinidas
+const durationOptions = [
+  { value: 0.5, label: "Quincenal (15 días)" },
+  { value: 1, label: "Mensual (1 mes)" },
+  { value: 3, label: "Trimestral (3 meses)" },
+  { value: 6, label: "Semestral (6 meses)" },
+  { value: 12, label: "Anual (12 meses)" },
+];
+
 export default function PlansManager() {
-  const { plans, addPlan, updatePlan, deletePlan, fetchPlans } =
+  const { plans, addPlan, updatePlan, deletePlan, fetchPlans, disciplines } =
     useBlackSheepStore();
   const { toast } = useToast();
 
@@ -80,9 +90,9 @@ export default function PlansManager() {
       classLimit: plan.classLimit,
       disciplineAccess: plan.disciplineAccess,
       allowedDisciplines: plan.allowedDisciplines,
-      canFreeze: plan.canFreeze,
-      freezeDurationDays: plan.freezeDurationDays,
-      autoRenews: plan.autoRenews,
+      canFreeze: plan.canFreeze, // Campo mantenido para compatibilidad pero no usado
+      freezeDurationDays: plan.freezeDurationDays, // Campo mantenido para compatibilidad pero no usado
+      autoRenews: plan.autoRenews, // Mantenemos el campo pero no lo mostramos en la UI
       isActive: plan.isActive,
     });
     setEditingPlan(plan.id);
@@ -128,6 +138,28 @@ export default function PlansManager() {
       [name]: value,
     }));
   };
+
+  const toggleDiscipline = (disciplineId: string) => {
+    setPlanForm((prev) => {
+      const isSelected = prev.allowedDisciplines.includes(disciplineId);
+      const newAllowedDisciplines = isSelected
+        ? prev.allowedDisciplines.filter((id) => id !== disciplineId)
+        : [...prev.allowedDisciplines, disciplineId];
+
+      return {
+        ...prev,
+        allowedDisciplines: newAllowedDisciplines,
+        disciplineAccess:
+          newAllowedDisciplines.length === 0 ? "all" : "limited",
+      };
+    });
+  };
+
+  // Calcular clases totales según duración
+  const clasesTotales = calcularClasesSegunDuracion(
+    planForm.classLimit,
+    planForm.durationInMonths
+  );
 
   const handleSavePlan = () => {
     if (!planForm.name || !planForm.price) {
@@ -237,15 +269,18 @@ export default function PlansManager() {
                   </p>
                 )}
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm font-medium">Duración</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {plan.durationInMonths} mes
-                      {plan.durationInMonths !== 1 ? "es" : ""}
+                      {plan.durationInMonths === 0.5
+                        ? "Quincenal"
+                        : plan.durationInMonths === 1
+                        ? "1 mes"
+                        : `${plan.durationInMonths} meses`}
                     </p>
                   </div>
 
@@ -257,7 +292,10 @@ export default function PlansManager() {
                     <p className="text-sm text-muted-foreground">
                       {plan.classLimit === 0
                         ? "Ilimitadas"
-                        : `${plan.classLimit} al mes`}
+                        : `${calcularClasesSegunDuracion(
+                            plan.classLimit,
+                            plan.durationInMonths
+                          )} clases totales`}
                     </p>
                   </div>
 
@@ -270,32 +308,50 @@ export default function PlansManager() {
                       ${plan.price.toLocaleString()}
                     </p>
                   </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Snowflake className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Congelación</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {plan.canFreeze
-                        ? `${plan.freezeDurationDays} días`
-                        : "No disponible"}
-                    </p>
-                  </div>
                 </div>
 
                 <div className="mt-4 pt-4 border-t">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {plan.disciplineAccess === "all"
-                        ? "Todas las disciplinas"
-                        : "Disciplinas limitadas"}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {plan.autoRenews
-                        ? "Renovación automática"
-                        : "Renovación manual"}
-                    </Badge>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {plan.disciplineAccess === "all"
+                          ? "Todas las disciplinas"
+                          : "Disciplinas limitadas"}
+                      </Badge>
+                    </div>
+
+                    {plan.disciplineAccess === "limited" &&
+                      plan.allowedDisciplines.length > 0 && (
+                        <div>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Disciplinas incluidas:
+                          </span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {plan.allowedDisciplines.map((disciplineId) => {
+                              const discipline = disciplines.find(
+                                (d) => d.id === disciplineId
+                              );
+                              if (!discipline) return null;
+
+                              return (
+                                <Badge
+                                  key={disciplineId}
+                                  variant="outline"
+                                  className="text-xs"
+                                >
+                                  <span
+                                    className="w-2 h-2 rounded-full mr-1"
+                                    style={{
+                                      background: discipline.color || "#ccc",
+                                    }}
+                                  />
+                                  {discipline.name}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                   </div>
                 </div>
               </CardContent>
@@ -314,8 +370,8 @@ export default function PlansManager() {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Información básica */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Información básica - 3 campos en una línea */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label>Nombre del Plan</Label>
                 <Input
@@ -323,6 +379,15 @@ export default function PlansManager() {
                   value={planForm.name}
                   onChange={handlePlanChange}
                   placeholder="Ej: Básico, Premium, VIP"
+                />
+              </div>
+              <div>
+                <Label>Descripción</Label>
+                <Input
+                  name="description"
+                  value={planForm.description}
+                  onChange={handlePlanChange}
+                  placeholder="Descripción del plan"
                 />
               </div>
               <div>
@@ -336,111 +401,138 @@ export default function PlansManager() {
                   min="0"
                 />
               </div>
-              <div className="md:col-span-2">
-                <Label>Descripción</Label>
-                <Input
-                  name="description"
-                  value={planForm.description}
-                  onChange={handlePlanChange}
-                  placeholder="Descripción del plan"
-                />
+            </div>
+
+            {/* Reglas - 2 columnas */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Reglas</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Duración</Label>
+                  <Select
+                    value={planForm.durationInMonths.toString()}
+                    onValueChange={(value) => {
+                      setPlanForm((prev) => ({
+                        ...prev,
+                        durationInMonths: Number(value),
+                      }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona la duración" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {durationOptions.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value.toString()}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Límite de Clases por Mes</Label>
+                  <Input
+                    name="classLimit"
+                    type="number"
+                    value={planForm.classLimit}
+                    onChange={handlePlanChange}
+                    placeholder="0 = ilimitado"
+                    min="0"
+                  />
+                  {planForm.classLimit > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total para{" "}
+                      {planForm.durationInMonths === 0.5
+                        ? "quincena"
+                        : `${planForm.durationInMonths} mes${
+                            planForm.durationInMonths !== 1 ? "es" : ""
+                          }`}
+                      : {clasesTotales} clases
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Configuración de duración y clases */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Duración (meses)</Label>
-                <Input
-                  name="durationInMonths"
-                  type="number"
-                  value={planForm.durationInMonths}
-                  onChange={handlePlanChange}
-                  min="1"
-                  max="12"
+            {/* Acceso a disciplinas */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">
+                  Acceso a todas las disciplinas
+                </Label>
+                <Switch
+                  checked={planForm.disciplineAccess === "all"}
+                  onCheckedChange={(checked) => {
+                    setPlanForm((prev) => ({
+                      ...prev,
+                      disciplineAccess: checked ? "all" : "limited",
+                      allowedDisciplines: checked
+                        ? []
+                        : prev.allowedDisciplines,
+                    }));
+                  }}
                 />
               </div>
-              <div>
-                <Label>Límite de Clases por Mes</Label>
-                <Input
-                  name="classLimit"
-                  type="number"
-                  value={planForm.classLimit}
-                  onChange={handlePlanChange}
-                  placeholder="0 = ilimitado"
-                  min="0"
-                />
-              </div>
-            </div>
 
-            {/* Configuración de acceso y congelación */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Acceso a Disciplinas</Label>
-                <Select
-                  value={planForm.disciplineAccess}
-                  onValueChange={(value) =>
-                    handleSelectChange("disciplineAccess", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas las disciplinas</SelectItem>
-                    <SelectItem value="limited">
-                      Disciplinas limitadas
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Días de Congelación</Label>
-                <Input
-                  name="freezeDurationDays"
-                  type="number"
-                  value={planForm.freezeDurationDays}
-                  onChange={handlePlanChange}
-                  min="0"
-                  placeholder="0 = no disponible"
-                />
-              </div>
+              {planForm.disciplineAccess === "limited" && (
+                <div className="space-y-3">
+                  <Label className="text-sm text-muted-foreground">
+                    Selecciona las disciplinas incluidas en este plan:
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {disciplines
+                      .filter((d) => d.isActive)
+                      .map((discipline) => (
+                        <Badge
+                          key={discipline.id}
+                          variant={
+                            planForm.allowedDisciplines.includes(discipline.id)
+                              ? "default"
+                              : "outline"
+                          }
+                          className={`cursor-pointer ${
+                            planForm.allowedDisciplines.includes(discipline.id)
+                              ? "bg-blue-500 text-white"
+                              : "hover:bg-blue-50"
+                          }`}
+                          onClick={() => toggleDiscipline(discipline.id)}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full mr-2"
+                            style={{
+                              background: discipline.color || "#ccc",
+                            }}
+                          />
+                          {discipline.name}
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Configuraciones adicionales */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="canFreeze"
-                  name="canFreeze"
-                  checked={planForm.canFreeze}
-                  onChange={handlePlanChange}
-                  className="rounded"
-                />
-                <Label htmlFor="canFreeze">Permitir congelación</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="autoRenews"
-                  name="autoRenews"
-                  checked={planForm.autoRenews}
-                  onChange={handlePlanChange}
-                  className="rounded"
-                />
-                <Label htmlFor="autoRenews">Renovación automática</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  name="isActive"
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-medium">Plan activo</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Los usuarios pueden suscribirse a este plan
+                  </p>
+                </div>
+                <Switch
                   checked={planForm.isActive}
-                  onChange={handlePlanChange}
-                  className="rounded"
+                  onCheckedChange={(checked) => {
+                    setPlanForm((prev) => ({
+                      ...prev,
+                      isActive: checked,
+                    }));
+                  }}
                 />
-                <Label htmlFor="isActive">Plan activo</Label>
               </div>
             </div>
 

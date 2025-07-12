@@ -79,15 +79,27 @@ export function InstructorsManager() {
 
   const handleSaveInstructor = (instructorData: Partial<Instructor>) => {
     if (editingInstructor) {
-      updateInstructor(editingInstructor.id, instructorData);
-      setEditingInstructor(null);
-    } else {
-      const newInstructorData = {
-        organizationId: "org_blacksheep_001",
-        isActive: true,
+      // Para actualizar, necesitamos un objeto Instructor completo
+      const updatedInstructor: Instructor = {
+        ...editingInstructor,
         ...instructorData,
       };
-      addInstructor(newInstructorData);
+      updateInstructor(updatedInstructor);
+      setEditingInstructor(null);
+    } else {
+      // Para agregar, necesitamos un objeto Instructor completo
+      const newInstructor: Instructor = {
+        id: `inst_${Date.now()}`, // Generar ID único
+        organizationId: "org_blacksheep_001",
+        firstName: instructorData.firstName || "",
+        lastName: instructorData.lastName || "",
+        email: instructorData.email || "",
+        phone: instructorData.phone || "",
+        specialties: instructorData.specialties || [],
+        isActive: instructorData.isActive ?? true,
+        role: instructorData.role || "coach",
+      };
+      addInstructor(newInstructor);
       setIsAddingInstructor(false);
     }
   };
