@@ -21,9 +21,18 @@ import type {
 const initialClassRegistrations: any[] = [];
 const initialMembershipRenewals: any[] = [];
 
+// NUEVO: Tipo para el estado de paginación
+export interface PaginationState {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 interface BlackSheepStore {
   // State
   users: User[];
+  pagination: PaginationState | null; // NUEVO: Estado para la paginación
   classSessions: ClassSession[];
   disciplines: Discipline[];
   instructors: Instructor[];
@@ -36,7 +45,13 @@ interface BlackSheepStore {
   addUser: (user: User) => void;
   updateUser: (user: User) => void;
   deleteUser: (userId: string) => void;
-  fetchUsers: () => void;
+  fetchUsers: (
+    page?: number,
+    limit?: number,
+    search?: string,
+    role?: string,
+    status?: string
+  ) => Promise<void>;
 
   // Class session actions
   addClassSession: (classSession: ClassSession) => void;
@@ -88,7 +103,8 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
   devtools(
     (set, get) => ({
       // Initial state
-      users: initialUsers,
+      users: [], // Ahora vacío
+      pagination: null, // NUEVO
       classSessions: initialClassSessions,
       disciplines: initialDisciplines,
       instructors: initialInstructors,
@@ -107,9 +123,31 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         set((state) => ({
           users: state.users.filter((u) => u.id !== userId),
         })),
-      fetchUsers: () => {
-        // In a real app, this would fetch from API
-        set({ users: initialUsers });
+      fetchUsers: async (
+        page = 1,
+        limit = 10,
+        search = "",
+        role = "",
+        status = ""
+      ) => {
+        try {
+          const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+          });
+          if (search) params.append("search", search);
+          if (role) params.append("role", role);
+          if (status) params.append("status", status);
+
+          const response = await fetch(`/api/users?${params.toString()}`);
+          if (!response.ok) throw new Error("Failed to fetch users");
+
+          const data = await response.json();
+          set({ users: data.users, pagination: data.pagination });
+        } catch (error) {
+          console.error("Error fetching users:", error);
+          set({ users: [], pagination: null });
+        }
       },
 
       // Class session actions
