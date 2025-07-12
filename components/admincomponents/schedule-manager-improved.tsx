@@ -54,8 +54,13 @@ const emptyDiscipline: Discipline = {
 };
 
 export default function ScheduleManagerImproved() {
-  const { disciplines, addDiscipline, updateDiscipline, deleteDiscipline } =
-    useBlackSheepStore();
+  const {
+    disciplines,
+    addDiscipline,
+    updateDiscipline,
+    deleteDiscipline,
+    fetchDisciplines,
+  } = useBlackSheepStore();
 
   // Estados para gestión de disciplinas
   const [showDisciplineModal, setShowDisciplineModal] = useState(false);
@@ -77,6 +82,11 @@ export default function ScheduleManagerImproved() {
   const [disciplineToDelete, setDisciplineToDelete] = useState<string | null>(
     null
   );
+
+  // Cargar disciplinas al montar el componente
+  useEffect(() => {
+    fetchDisciplines();
+  }, [fetchDisciplines]);
 
   // --- Gestión de disciplinas ---
   const handleNewDiscipline = () => {
@@ -105,6 +115,10 @@ export default function ScheduleManagerImproved() {
   const confirmDeleteDiscipline = () => {
     if (disciplineToDelete) {
       deleteDiscipline(disciplineToDelete);
+
+      // Refrescar la lista después de eliminar
+      fetchDisciplines();
+
       setShowDeleteModal(false);
       setDisciplineToDelete(null);
     }
@@ -209,6 +223,9 @@ export default function ScheduleManagerImproved() {
     } else {
       addDiscipline({ ...disciplineData, id: `disc_${Date.now()}` });
     }
+
+    // Refrescar la lista después de agregar/editar
+    fetchDisciplines();
 
     setShowDisciplineModal(false);
     setDisciplineForm(emptyDiscipline);

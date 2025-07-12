@@ -69,7 +69,11 @@ interface BlackSheepStore {
   addDiscipline: (discipline: Discipline) => void;
   updateDiscipline: (discipline: Discipline) => void;
   deleteDiscipline: (disciplineId: string) => void;
-  fetchDisciplines: () => void;
+  fetchDisciplines: (
+    page?: number,
+    limit?: number,
+    isActive?: string
+  ) => Promise<void>;
 
   // Instructor actions
   addInstructor: (instructor: Instructor) => void;
@@ -113,7 +117,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       users: [], // Ahora vacío
       pagination: null, // NUEVO
       classSessions: initialClassSessions,
-      disciplines: initialDisciplines,
+      disciplines: [], // Ahora vacío para paginación
       instructors: [], // Ahora vacío para paginación
       instructorsPagination: null, // NUEVO
       plans: initialPlans,
@@ -218,9 +222,23 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         set((state) => ({
           disciplines: state.disciplines.filter((d) => d.id !== disciplineId),
         })),
-      fetchDisciplines: () => {
-        // En una app real, aquí iría la llamada a la API
-        set((state) => ({ disciplines: state.disciplines }));
+      fetchDisciplines: async (page = 1, limit = 50, isActive = "") => {
+        try {
+          const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+          });
+          if (isActive) params.append("isActive", isActive);
+
+          const response = await fetch(`/api/disciplines?${params.toString()}`);
+          if (!response.ok) throw new Error("Failed to fetch disciplines");
+
+          const data = await response.json();
+          set({ disciplines: data.disciplines });
+        } catch (error) {
+          console.error("Error fetching disciplines:", error);
+          set({ disciplines: [] });
+        }
       },
 
       // Instructor actions
