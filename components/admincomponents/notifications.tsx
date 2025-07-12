@@ -33,12 +33,7 @@ import type { FitCenterUserProfile } from "@/lib/types";
 
 interface Notification {
   id: string;
-  type:
-    | "pending_user"
-    | "expiring_membership"
-    | "cancelled_class"
-    | "high_demand"
-    | "no_instructor";
+  type: "pending_user" | "cancelled_class";
   title: string;
   description: string;
   timestamp: Date;
@@ -67,7 +62,7 @@ export function Notifications() {
     const newNotifications: Notification[] = [];
     const now = new Date();
 
-    // Usuarios pendientes de aprobación
+    // Usuarios pendientes de aprobación (revisión manual)
     const pendingUsers = users.filter(
       (user) => user.membership?.status === "pending"
     );
@@ -75,91 +70,51 @@ export function Notifications() {
       newNotifications.push({
         id: `pending-user-${user.id}`,
         type: "pending_user",
-        title: "Usuario Pendiente de Aprobación",
-        description: `${user.firstName} ${user.lastName} (${user.email}) espera aprobación`,
+        title: "Nuevo Alumno Pendiente",
+        description: `${user.firstName} ${user.lastName} - ${user.email}`,
         timestamp: new Date(),
         data: user,
         resolved: false,
       });
     });
 
-    // Usuarios con membresías próximas a vencer
-    const expiringUsers = users.filter((user) => {
-      if (!user.membership?.currentPeriodEnd) return false;
-      const endDate = new Date(user.membership.currentPeriodEnd);
-      const daysUntilExpiry = Math.ceil(
-        (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      return daysUntilExpiry <= 7 && daysUntilExpiry > 0;
-    });
-
-    expiringUsers.forEach((user) => {
-      newNotifications.push({
-        id: `expiring-${user.id}`,
-        type: "expiring_membership",
-        title: "Membresía por Vencer",
-        description: `${user.firstName} ${user.lastName} - Vence en ${Math.ceil(
-          (new Date(user.membership!.currentPeriodEnd).getTime() -
-            now.getTime()) /
-            (1000 * 60 * 60 * 24)
-        )} días`,
-        timestamp: new Date(),
-        data: user,
-        resolved: false,
-      });
-    });
-
-    // Clases canceladas
-    const cancelledClasses = classSessions.filter(
-      (cls) => cls.status === "cancelled"
-    );
+    // Últimas 3 clases canceladas (solo visual)
+    const cancelledClasses = classSessions
+      .filter((cls) => cls.status === "cancelled")
+      .slice(0, 3);
     if (cancelledClasses.length > 0) {
       newNotifications.push({
         id: "cancelled-classes",
         type: "cancelled_class",
-        title: "Clases Canceladas",
-        description: `${cancelledClasses.length} clase(s) han sido canceladas recientemente`,
+        title: "Últimas clases canceladas",
+        description: cancelledClasses
+          .map((cls) => {
+            const date = new Date(cls.dateTime);
+            const day = date
+              .toLocaleDateString("es-ES", {
+                weekday: "short",
+                day: "2-digit",
+                month: "short",
+              })
+              .toUpperCase();
+            const time = date.toLocaleTimeString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            return `${day} ${date.getDate()} ${date
+              .toLocaleDateString("es-ES", { month: "short" })
+              .toUpperCase()} ${date.getFullYear()} - ${time}`;
+          })
+          .join("\n"),
         timestamp: new Date(),
         data: cancelledClasses,
         resolved: false,
       });
     }
 
-    // Clases con alta demanda
-    const highDemandClasses = classSessions.filter(
-      (cls) =>
-        cls.status === "scheduled" &&
-        cls.registeredParticipantsIds.length >= cls.capacity * 0.9
-    );
-    if (highDemandClasses.length > 0) {
-      newNotifications.push({
-        id: "high-demand",
-        type: "high_demand",
-        title: "Clases con Alta Demanda",
-        description: `${highDemandClasses.length} clase(s) están casi llenas`,
-        timestamp: new Date(),
-        data: highDemandClasses,
-        resolved: false,
-      });
-    }
-
-    // Clases sin instructor
-    const classesWithoutInstructor = classSessions.filter(
-      (cls) =>
-        cls.status === "scheduled" &&
-        (!cls.instructorId || cls.instructorId === "")
-    );
-    if (classesWithoutInstructor.length > 0) {
-      newNotifications.push({
-        id: "no-instructor",
-        type: "no_instructor",
-        title: "Clases sin Instructor",
-        description: `${classesWithoutInstructor.length} clase(s) no tienen instructor asignado`,
-        timestamp: new Date(),
-        data: classesWithoutInstructor,
-        resolved: false,
-      });
-    }
+    // NOTA: Eliminamos la alerta de clases sin instructor por ser poco útil
+    // Muchas clases se crean sin instructor inicialmente y se asignan después
+    // Esto generaba demasiados falsos positivos
 
     setNotifications(newNotifications);
     setIsLoading(false);
@@ -186,8 +141,8 @@ export function Notifications() {
     markNotificationAsResolved(`pending-user-${user.id}`);
 
     toast({
-      title: "Usuario aprobado",
-      description: `${user.firstName} ${user.lastName} ha sido aprobado exitosamente`,
+      title: "Alumno aprobado",
+      description: `${user.firstName} ${user.lastName} puede inscribir clases`,
     });
 
     setShowUserModal(false);
@@ -226,8 +181,8 @@ export function Notifications() {
     markNotificationAsResolved(`pending-user-${user.id}`);
 
     toast({
-      title: "Usuario rechazado",
-      description: `${user.firstName} ${user.lastName} ha sido rechazado`,
+      title: "Alumno rechazado",
+      description: `${user.firstName} ${user.lastName} no fue aprobado`,
       variant: "destructive",
     });
 
@@ -250,14 +205,8 @@ export function Notifications() {
     switch (type) {
       case "pending_user":
         return <UserCheck className="h-5 w-5 text-blue-500" />;
-      case "expiring_membership":
-        return <Clock className="h-5 w-5 text-orange-500" />;
       case "cancelled_class":
         return <XCircle className="h-5 w-5 text-red-500" />;
-      case "high_demand":
-        return <TrendingUp className="h-5 w-5 text-green-500" />;
-      case "no_instructor":
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
     }
   };
 
@@ -265,14 +214,8 @@ export function Notifications() {
     switch (type) {
       case "pending_user":
         return "default";
-      case "expiring_membership":
-        return "secondary";
       case "cancelled_class":
         return "destructive";
-      case "high_demand":
-        return "default";
-      case "no_instructor":
-        return "secondary";
     }
   };
 
@@ -280,14 +223,8 @@ export function Notifications() {
     switch (type) {
       case "pending_user":
         return "PENDIENTE";
-      case "expiring_membership":
-        return "VENCE PRONTO";
       case "cancelled_class":
         return "CANCELADA";
-      case "high_demand":
-        return "ALTA DEMANDA";
-      case "no_instructor":
-        return "SIN INSTRUCTOR";
     }
   };
 
@@ -344,32 +281,17 @@ export function Notifications() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Membresías por Vencer
+              Clases Canceladas
             </CardTitle>
-            <Clock className="h-4 w-4 text-orange-500" />
+            <XCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-500">
-              {
-                notifications.filter(
-                  (n) => n.type === "expiring_membership" && !n.resolved
-                ).length
-              }
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Alertas del Sistema
-            </CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-500">
+            <div className="text-2xl font-bold text-red-500">
               {otherNotifications.length}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Últimas 3 cancelaciones
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -379,7 +301,7 @@ export function Notifications() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <UserCheck className="h-5 w-5 text-blue-500" />
-            Usuarios Pendientes de Aprobación
+            Nuevos Alumnos por Aprobar
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {pendingUsers.map((notification) => {
@@ -437,18 +359,18 @@ export function Notifications() {
         </div>
       )}
 
-      {/* Otras Notificaciones */}
+      {/* Clases Canceladas */}
       {otherNotifications.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
-            Alertas del Sistema
+            <XCircle className="h-5 w-5 text-red-500" />
+            Últimas clases canceladas
           </h2>
           <div className="space-y-4">
             {otherNotifications.map((notification) => (
               <Card
                 key={notification.id}
-                className="border-l-4 border-l-yellow-500"
+                className="border-l-4 border-l-red-500"
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
@@ -501,9 +423,9 @@ export function Notifications() {
             <div className="text-center">
               <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
               <p className="text-muted-foreground">
-                No hay notificaciones pendientes
+                No hay nuevos alumnos ni clases canceladas
               </p>
-              <p className="text-sm text-muted-foreground">Todo está al día</p>
+              <p className="text-sm text-muted-foreground">Todo tranquilo</p>
             </div>
           </CardContent>
         </Card>
@@ -513,7 +435,7 @@ export function Notifications() {
       <Dialog open={showUserModal} onOpenChange={setShowUserModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Revisar Usuario Pendiente</DialogTitle>
+            <DialogTitle>Revisar Nuevo Alumno</DialogTitle>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
@@ -540,22 +462,13 @@ export function Notifications() {
                 </div>
               </div>
 
-              {selectedUser.notes && (
-                <div>
-                  <Label>Notas</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedUser.notes}
-                  </p>
-                </div>
-              )}
-
               <div className="flex gap-2 pt-4">
                 <Button
                   onClick={() => handleApproveUser(selectedUser)}
                   className="flex-1 bg-green-600 hover:bg-green-700"
                 >
                   <UserCheck className="h-4 w-4 mr-2" />
-                  Aprobar Usuario
+                  Aprobar
                 </Button>
                 <Button
                   variant="destructive"
@@ -563,7 +476,7 @@ export function Notifications() {
                   className="flex-1"
                 >
                   <UserX className="h-4 w-4 mr-2" />
-                  Rechazar
+                  No Aprobar
                 </Button>
               </div>
             </div>
@@ -575,16 +488,16 @@ export function Notifications() {
       <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Rechazar Usuario</DialogTitle>
+            <DialogTitle>Rechazar Alumno</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="reject-reason">Razón del rechazo</Label>
+              <Label htmlFor="reject-reason">¿Por qué no lo apruebas?</Label>
               <Textarea
                 id="reject-reason"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Explica por qué se rechaza al usuario..."
+                placeholder="Ej: No pagó el plan, datos incorrectos..."
                 rows={3}
               />
             </div>
@@ -594,7 +507,7 @@ export function Notifications() {
                 variant="destructive"
                 className="flex-1"
               >
-                Confirmar Rechazo
+                No Aprobar
               </Button>
               <Button
                 variant="outline"
