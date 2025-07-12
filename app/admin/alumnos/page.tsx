@@ -47,21 +47,31 @@ const formatDate = (dateString: string | undefined): string => {
 };
 
 export default function AlumnosPage() {
-  const { users = [], addUser, updateUser, fetchUsers } = useBlackSheepStore();
+  const { users = [], fetchUsers, pagination } = useBlackSheepStore();
 
-  // Estado de paginación
-  const limit = 10; // 10 alumnos por página
+  // Estado de paginación y filtros
   const [page, setPage] = useState(1);
-
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [editingStudent, setEditingStudent] =
     useState<FitCenterUserProfile | null>(null);
+  const limit = 10;
 
-  // Cargar usuarios al montar el componente
+  // Cargar usuarios al montar el componente y cuando cambian filtros/página
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    fetchUsers(
+      page,
+      limit,
+      searchTerm,
+      undefined,
+      statusFilter !== "todos" ? statusFilter : undefined
+    );
+  }, [page, searchTerm, statusFilter, fetchUsers]);
+
+  // Resetear página si cambia el filtro de búsqueda o estado
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
 
   const getStatusBadge = (status: string) => {
     const color =
@@ -73,36 +83,6 @@ export default function AlumnosPage() {
     );
   };
 
-  // Filtrar estudiantes (búsqueda y filtro de estado)
-  const filteredStudents = users.filter((student: FitCenterUserProfile) => {
-    const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();
-    const matchesSearch =
-      fullName.includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "todos" || student.membership?.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  // Usar hook de paginación
-  const { paginationData, currentPageItems: currentPageStudents } =
-    usePagination({
-      items: filteredStudents,
-      page,
-      pageSize: limit,
-    });
-
-  const { goToNextPage, goToPrevPage } = usePaginationControls(
-    paginationData.currentPage,
-    paginationData.totalPages,
-    setPage
-  );
-
-  // Resetear página si cambia la cantidad de alumnos filtrados
-  useEffect(() => {
-    setPage(1);
-  }, [paginationData.totalItems]);
-
   const handleEditStudent = (student: FitCenterUserProfile) => {
     setEditingStudent(student);
   };
@@ -110,6 +90,13 @@ export default function AlumnosPage() {
   const handleCloseEditModal = () => {
     setEditingStudent(null);
   };
+
+  // Paginación real desde el store
+  const totalItems = pagination?.total || 0;
+  const totalPages = pagination?.totalPages || 1;
+  const currentPage = pagination?.page || 1;
+  const startIndex = (currentPage - 1) * limit;
+  const endIndex = Math.min(startIndex + users.length, totalItems);
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -123,7 +110,7 @@ export default function AlumnosPage() {
                 .toString(36)
                 .substr(2, 9)}`,
             };
-            addUser(newStudent);
+            // fetchUsers se encargará de refrescar la lista
           }}
           plans={initialMembershipPlans}
         />
@@ -158,28 +145,26 @@ export default function AlumnosPage() {
       {/* Información de resultados */}
       <div className="flex justify-between items-center">
         <p className="text-sm text-muted-foreground">
-          Mostrando {paginationData.startIndex + 1}-
-          {Math.min(paginationData.endIndex, paginationData.totalItems)} de{" "}
-          {paginationData.totalItems} alumnos
+          Mostrando {startIndex + 1}-{endIndex} de {totalItems} alumnos
         </p>
-        {paginationData.totalPages > 1 && (
+        {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={goToPrevPage}
-              disabled={!paginationData.hasPrevPage}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
             >
               Anterior
             </Button>
             <span className="text-sm text-muted-foreground">
-              Página {paginationData.currentPage} de {paginationData.totalPages}
+              Página {currentPage} de {totalPages}
             </span>
             <Button
               variant="outline"
               size="sm"
-              onClick={goToNextPage}
-              disabled={!paginationData.hasNextPage}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
             >
               Siguiente
             </Button>
@@ -202,19 +187,19 @@ export default function AlumnosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {currentPageStudents.length === 0 ? (
+              {users.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={7}
                     className="text-center py-8 text-muted-foreground"
                   >
-                    {filteredStudents.length === 0
+                    {totalItems === 0
                       ? "No se encontraron alumnos"
                       : "No hay alumnos en esta página"}
                   </TableCell>
                 </TableRow>
               ) : (
-                currentPageStudents.map((student: FitCenterUserProfile) => (
+                users.map((student: FitCenterUserProfile) => (
                   <TableRow
                     key={student.id}
                     className={
