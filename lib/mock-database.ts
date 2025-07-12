@@ -101,8 +101,7 @@ function generateClassesFromDisciplines(
                   Math.floor(Math.random() * 3)
                 ] as "up" | "down" | "stable",
               },
-              cancellationHours:
-                discipline.cancellationRules?.defaultHours || 2,
+              cancellationHours: 2,
               occupancyRate: 0.5,
             });
           }
@@ -246,8 +245,100 @@ class MockPrismaClient {
   };
 
   user = {
-    findMany: async (_params?: any) => {
-      return [...this.data.user];
+    findMany: async (params?: {
+      where?: {
+        role?: string;
+        membership?: {
+          status?: string;
+        };
+        OR?: Array<{
+          firstName?: { contains?: string; mode?: string };
+          lastName?: { contains?: string; mode?: string };
+          email?: { contains?: string; mode?: string };
+        }>;
+      };
+      take?: number;
+      skip?: number;
+      orderBy?: { [key: string]: "asc" | "desc" };
+    }) => {
+      let results = [...this.data.user];
+
+      // Simular el filtrado (where)
+      if (params?.where) {
+        // Filtro por rol
+        if (params.where.role) {
+          results = results.filter((u) => u.role === params.where!.role);
+        }
+
+        // Filtro por estado de membresía
+        if (params.where.membership?.status) {
+          results = results.filter(
+            (u) => u.membership?.status === params.where!.membership!.status
+          );
+        }
+
+        // Filtro de búsqueda (OR)
+        if (params.where.OR) {
+          const searchConditions = params.where.OR;
+          results = results.filter((u) =>
+            searchConditions.some((condition) => {
+              if (condition.firstName?.contains) {
+                return u.firstName
+                  .toLowerCase()
+                  .includes(condition.firstName.contains.toLowerCase());
+              }
+              if (condition.lastName?.contains) {
+                return u.lastName
+                  .toLowerCase()
+                  .includes(condition.lastName.contains.toLowerCase());
+              }
+              if (condition.email?.contains) {
+                return u.email
+                  .toLowerCase()
+                  .includes(condition.email.contains.toLowerCase());
+              }
+              return false;
+            })
+          );
+        }
+      }
+
+      // Simular ordenamiento
+      if (params?.orderBy) {
+        const [field, direction] = Object.entries(params.orderBy)[0];
+        results.sort((a, b) => {
+          const aVal = (a as any)[field];
+          const bVal = (b as any)[field];
+          return direction === "asc"
+            ? String(aVal).localeCompare(String(bVal))
+            : String(bVal).localeCompare(String(aVal));
+        });
+      }
+
+      // Simular la paginación (skip/take)
+      const skip = params?.skip || 0;
+      const take = params?.take || results.length;
+
+      return results.slice(skip, skip + take);
+    },
+
+    // Simular el conteo para la paginación
+    count: async (params?: {
+      where?: {
+        role?: string;
+        membership?: {
+          status?: string;
+        };
+        OR?: Array<{
+          firstName?: { contains?: string; mode?: string };
+          lastName?: { contains?: string; mode?: string };
+          email?: { contains?: string; mode?: string };
+        }>;
+      };
+    }) => {
+      // Reutilizar la lógica de findMany sin la paginación para obtener el total filtrado
+      const allFiltered = await this.user.findMany({ where: params?.where });
+      return allFiltered.length;
     },
     findUnique: async (params: any) => {
       if (params.where.email) {
