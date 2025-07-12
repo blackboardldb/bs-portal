@@ -10,23 +10,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  AlertTriangle,
   Clock,
-  Users,
-  Calendar,
-  TrendingUp,
-  AlertCircle,
   CheckCircle,
   XCircle,
   UserCheck,
   UserX,
-  MessageSquare,
   Bell,
 } from "lucide-react";
 import type { FitCenterUserProfile } from "@/lib/types";
@@ -37,13 +30,12 @@ interface Notification {
   title: string;
   description: string;
   timestamp: Date;
-  data?: any;
+  data?: unknown;
   resolved: boolean;
 }
 
 export function Notifications() {
-  const { users, classSessions, disciplines, updateUser } =
-    useBlackSheepStore();
+  const { users, classSessions, updateUser } = useBlackSheepStore();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);

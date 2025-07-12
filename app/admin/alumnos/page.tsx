@@ -32,13 +32,22 @@ import { initialMembershipPlans } from "@/lib/mock-data";
 import type { FitCenterUserProfile } from "@/lib/types";
 import { usePagination, usePaginationControls } from "@/lib/use-pagination";
 
+// Función helper para formatear fechas
+const formatDate = (dateString: string | undefined): string => {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 export default function AlumnosPage() {
-  const {
-    users = [],
-    createUser,
-    updateUser,
-    fetchUsers,
-  } = useBlackSheepStore();
+  const { users = [], addUser, updateUser, fetchUsers } = useBlackSheepStore();
 
   // Estado de paginación
   const limit = 10; // 10 alumnos por página
@@ -107,7 +116,15 @@ export default function AlumnosPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Gestión de Alumnos</h1>
         <AddStudentModal
-          onAddStudent={createUser}
+          onAddStudent={(studentData) => {
+            const newStudent = {
+              ...studentData,
+              id: `usr_${Date.now()}_${Math.random()
+                .toString(36)
+                .substr(2, 9)}`,
+            };
+            addUser(newStudent);
+          }}
           plans={initialMembershipPlans}
         />
       </div>
@@ -131,7 +148,9 @@ export default function AlumnosPage() {
             <SelectItem value={STUDENT_STATES.ACTIVE}>Activo</SelectItem>
             <SelectItem value={STUDENT_STATES.INACTIVE}>Inactivo</SelectItem>
             <SelectItem value={STUDENT_STATES.EXPIRED}>Expirado</SelectItem>
-            <SelectItem value={STUDENT_STATES.PENDING}>Pendiente</SelectItem>
+            <SelectItem value={STUDENT_STATES.PENDING}>
+              Nuevo - Pendiente
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -179,7 +198,6 @@ export default function AlumnosPage() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Último Pago</TableHead>
                 <TableHead>Próximo Pago</TableHead>
-                <TableHead>Método de Pago</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -187,7 +205,7 @@ export default function AlumnosPage() {
               {currentPageStudents.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={7}
                     className="text-center py-8 text-muted-foreground"
                   >
                     {filteredStudents.length === 0
@@ -202,14 +220,16 @@ export default function AlumnosPage() {
                     className={
                       student.membership?.status === "pending"
                         ? "bg-yellow-50 border-l-4 border-yellow-400"
+                        : student.membership?.status === "expired"
+                        ? "bg-red-50 border-l-4 border-red-400"
                         : ""
                     }
                   >
                     <TableCell className="font-medium">
                       {student.firstName} {student.lastName}
-                      {student.membership?.status === "pending" && (
-                        <Badge className="ml-2 bg-yellow-400 text-black">
-                          Renovación Pendiente
+                      {student.membership?.status === "expired" && (
+                        <Badge className="ml-2 bg-red-500 text-white">
+                          Renovar
                         </Badge>
                       )}
                     </TableCell>
@@ -219,12 +239,18 @@ export default function AlumnosPage() {
                       {getStatusBadge(student.membership?.status || "inactive")}
                     </TableCell>
                     <TableCell>
-                      {student.membership?.currentPeriodStart}
+                      <div className="space-y-1">
+                        <div className="font-medium">
+                          {formatDate(student.membership?.currentPeriodStart)}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {student.formaDePago || "-"}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      {student.membership?.currentPeriodEnd}
+                      {formatDate(student.membership?.currentPeriodEnd)}
                     </TableCell>
-                    <TableCell>{student.formaDePago || "-"}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
@@ -246,9 +272,7 @@ export default function AlumnosPage() {
 
       <StudentEditModal
         student={editingStudent}
-        onEdit={(updatedStudent) =>
-          updateUser(updatedStudent.id, updatedStudent)
-        }
+        onEdit={(updatedStudent) => updateUser(updatedStudent)}
         onClose={handleCloseEditModal}
       />
     </div>

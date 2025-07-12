@@ -174,6 +174,13 @@ export function AddStudentModal({
     }
   }, [open, initialStudent]);
 
+  // Open modal when initialStudent is provided (for editing)
+  useEffect(() => {
+    if (initialStudent) {
+      setOpen(true);
+    }
+  }, [initialStudent]);
+
   // Función explícita para manejar cambios de fecha de inicio
   const handleJoinDateChange = useCallback(
     (newDate: string) => {
@@ -246,14 +253,16 @@ export function AddStudentModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="default" className="flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Agregar Alumno
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      {!initialStudent && (
+        <DialogTrigger asChild>
+          <Button variant="default" className="flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            Agregar Alumno
+          </Button>
+        </DialogTrigger>
+      )}
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {initialStudent ? "Editar Alumno" : "Agregar Alumno"}
           </DialogTitle>
@@ -263,92 +272,172 @@ export function AddStudentModal({
               : "Completa la información para agregar un nuevo alumno."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="name">Nombre Completo *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, name: e.target.value }))
-                }
-                placeholder="Nombre completo"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, email: e.target.value }))
-                }
-                placeholder="email@ejemplo.com"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="phone">Teléfono *</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, phone: e.target.value }))
-                }
-                placeholder="+1234567890"
-                required
-              />
-            </div>
-            {plans.length > 0 && (
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="plan">Plan *</Label>
-                <Select
-                  value={formData.planId}
-                  onValueChange={(value) => {
-                    setFormData((prev) => ({ ...prev, planId: value }));
-                  }}
+                <Label htmlFor="name">Nombre Completo *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  placeholder="Nombre completo"
                   required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, email: e.target.value }))
+                  }
+                  placeholder="email@ejemplo.com"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="phone">Teléfono *</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, phone: e.target.value }))
+                  }
+                  placeholder="+1234567890"
+                  required
+                />
+              </div>
+              {plans.length > 0 && (
+                <div>
+                  <Label htmlFor="plan">Plan *</Label>
+                  <Select
+                    value={formData.planId}
+                    onValueChange={(value) => {
+                      setFormData((prev) => ({ ...prev, planId: value }));
+                    }}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.id}>
+                          {plan.name} - ${plan.price} /{" "}
+                          {plan.durationInMonths === 0.5
+                            ? "quincena"
+                            : plan.durationInMonths === 1
+                            ? "mes"
+                            : plan.durationInMonths + " meses"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="formaDePago">Forma de Pago</Label>
+                <Select
+                  value={formData.formaDePago}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      formaDePago: value as
+                        | "contado"
+                        | "transferencia"
+                        | "debito"
+                        | "credito",
+                    }))
+                  }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un plan" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {plans.map((plan) => (
-                      <SelectItem key={plan.id} value={plan.id}>
-                        {plan.name} - ${plan.price} /{" "}
-                        {plan.durationInMonths === 0.5
-                          ? "quincena"
-                          : plan.durationInMonths === 1
-                          ? "mes"
-                          : plan.durationInMonths + " meses"}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="contado">Contado</SelectItem>
+                    <SelectItem value="transferencia">Transferencia</SelectItem>
+                    <SelectItem value="debito">Débito</SelectItem>
+                    <SelectItem value="credito">Crédito</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
-          </div>
+            </div>
 
-          <div className="grid grid-cols-2 gap-4">
+            {/* Componente de fechas de membresía */}
+            <MembershipDatePicker
+              selectedPlan={selectedPlan}
+              value={formData.joinDate}
+              onValueChange={handleJoinDateChange}
+            />
+
             <div>
-              <Label htmlFor="formaDePago">Forma de Pago</Label>
+              <Label htmlFor="lastPayment">Último Pago</Label>
+              <Input
+                id="lastPayment"
+                type="date"
+                value={formData.lastPayment}
+                onChange={(e) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    lastPayment: e.target.value,
+                  }));
+                  setLastPaymentTouched(true);
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 Se actualiza automáticamente con la fecha de inicio, pero
+                puedes editarlo manualmente
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="emergencyContact">Contacto de Emergencia</Label>
+              <Input
+                id="emergencyContact"
+                value={formData.emergencyContact}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    emergencyContact: e.target.value,
+                  }))
+                }
+                placeholder="Nombre - Teléfono"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="notes">Notas</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, notes: e.target.value }))
+                }
+                placeholder="Notas adicionales sobre el alumno..."
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="role">Rol</Label>
               <Select
-                value={formData.formaDePago}
+                value={formData.role}
                 onValueChange={(value) =>
                   setFormData((prev) => ({
                     ...prev,
-                    formaDePago: value as
-                      | "contado"
-                      | "transferencia"
-                      | "debito"
-                      | "credito",
+                    role: value as "admin" | "coach" | "user",
                   }))
                 }
               >
@@ -356,93 +445,14 @@ export function AddStudentModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="contado">Contado</SelectItem>
-                  <SelectItem value="transferencia">Transferencia</SelectItem>
-                  <SelectItem value="debito">Débito</SelectItem>
-                  <SelectItem value="credito">Crédito</SelectItem>
+                  <SelectItem value="user">Alumno</SelectItem>
+                  <SelectItem value="coach">Coach</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-
-          {/* Componente de fechas de membresía */}
-          <MembershipDatePicker
-            selectedPlan={selectedPlan}
-            value={formData.joinDate}
-            onValueChange={handleJoinDateChange}
-          />
-
-          <div>
-            <Label htmlFor="lastPayment">Último Pago</Label>
-            <Input
-              id="lastPayment"
-              type="date"
-              value={formData.lastPayment}
-              onChange={(e) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  lastPayment: e.target.value,
-                }));
-                setLastPaymentTouched(true);
-              }}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              💡 Se actualiza automáticamente con la fecha de inicio, pero
-              puedes editarlo manualmente
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="emergencyContact">Contacto de Emergencia</Label>
-            <Input
-              id="emergencyContact"
-              value={formData.emergencyContact}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  emergencyContact: e.target.value,
-                }))
-              }
-              placeholder="Nombre - Teléfono"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, notes: e.target.value }))
-              }
-              placeholder="Notas adicionales sobre el alumno..."
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="role">Rol</Label>
-            <Select
-              value={formData.role}
-              onValueChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  role: value as "admin" | "coach" | "user",
-                }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="user">Alumno</SelectItem>
-                <SelectItem value="coach">Coach</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
             <Button
               type="button"
               variant="outline"
