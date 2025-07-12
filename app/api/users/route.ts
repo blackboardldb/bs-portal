@@ -5,36 +5,51 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "10");
     const role = searchParams.get("role");
     const status = searchParams.get("status");
+    const search = searchParams.get("search");
 
-    // Get users from mock database
-    const users = await prisma.user.findMany({});
+    // Construir la consulta como se haría con Prisma real
+    const whereClause: {
+      role?: string;
+      membership?: { status: string };
+      OR?: Array<{
+        firstName?: { contains: string; mode: string };
+        lastName?: { contains: string; mode: string };
+        email?: { contains: string; mode: string };
+      }>;
+    } = {};
+    if (role) whereClause.role = role;
+    if (status) whereClause.membership = { status };
 
-    // Apply filters
-    let filteredUsers = users;
-    if (role) {
-      filteredUsers = filteredUsers.filter((user) => user.role === role);
+    // Agregar búsqueda si se proporciona
+    if (search) {
+      whereClause.OR = [
+        { firstName: { contains: search, mode: "insensitive" } },
+        { lastName: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ];
     }
-    if (status) {
-      filteredUsers = filteredUsers.filter(
-        (user) => user.membership.status === status
-      );
-    }
 
-    // Apply pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+    // 1. Pedir solo la página de usuarios que necesitamos
+    const paginatedUsers = await prisma.user.findMany({
+      where: whereClause,
+      take: limit,
+      skip: (page - 1) * limit,
+      orderBy: { firstName: "asc" },
+    });
+
+    // 2. Pedir el conteo total para la paginación
+    const totalUsers = await prisma.user.count({ where: whereClause });
 
     return NextResponse.json({
       users: paginatedUsers,
       pagination: {
         page,
         limit,
-        total: filteredUsers.length,
-        totalPages: Math.ceil(filteredUsers.length / limit),
+        total: totalUsers,
+        totalPages: Math.ceil(totalUsers / limit),
       },
     });
   } catch (error) {
