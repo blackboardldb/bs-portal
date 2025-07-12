@@ -24,6 +24,7 @@ import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
 import { calcularClasesSegunDuracion } from "@/lib/utils";
 import type { MembershipPlan } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus,
   Edit,
@@ -63,6 +64,8 @@ export default function PlansManager() {
     useBlackSheepStore();
   const { toast } = useToast();
 
+  const [isLoading, setIsLoading] = useState(true);
+
   // Estados para gestión de planes
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
@@ -76,7 +79,20 @@ export default function PlansManager() {
   const [activeFilter, setActiveFilter] = useState("todos");
 
   useEffect(() => {
-    fetchPlans(1, 50, searchTerm, activeFilter !== "todos" ? activeFilter : "");
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await fetchPlans(
+          1,
+          50,
+          searchTerm,
+          activeFilter !== "todos" ? activeFilter : ""
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, [fetchPlans, searchTerm, activeFilter]);
 
   // --- Gestión de planes ---
@@ -255,7 +271,46 @@ export default function PlansManager() {
 
       {/* Lista de planes */}
       <div className="grid grid-cols-1 gap-4">
-        {plans.length === 0 ? (
+        {isLoading ? (
+          // Skeleton simplificado para cards de planes
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="w-5 h-5 rounded" />
+                    <Skeleton className="h-6 w-32" />
+                  </div>
+                  <div className="flex gap-1">
+                    <Skeleton className="w-8 h-8 rounded" />
+                    <Skeleton className="w-8 h-8 rounded" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Skeleton className="h-4 w-3/4 mb-4" />
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-12" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-12" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t">
+                  <Skeleton className="h-4 w-32 mb-2" />
+                  <Skeleton className="h-4 w-40" />
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : plans.length === 0 ? (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">

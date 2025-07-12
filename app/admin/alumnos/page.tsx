@@ -31,6 +31,7 @@ import {
 import { initialMembershipPlans } from "@/lib/mock-data";
 import type { FitCenterUserProfile } from "@/lib/types";
 import { usePagination, usePaginationControls } from "@/lib/use-pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Función helper para formatear fechas
 const formatDate = (dateString: string | undefined): string => {
@@ -55,6 +56,8 @@ export default function AlumnosPage() {
     addUser,
   } = useBlackSheepStore();
 
+  const [isLoading, setIsLoading] = useState(true);
+
   // Estado de paginación y filtros
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
@@ -65,13 +68,21 @@ export default function AlumnosPage() {
 
   // Cargar usuarios al montar el componente y cuando cambian filtros/página
   useEffect(() => {
-    fetchUsers(
-      page,
-      limit,
-      searchTerm,
-      undefined,
-      statusFilter !== "todos" ? statusFilter : undefined
-    );
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await fetchUsers(
+          page,
+          limit,
+          searchTerm,
+          undefined,
+          statusFilter !== "todos" ? statusFilter : undefined
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, [page, searchTerm, statusFilter, fetchUsers]);
 
   // Resetear página si cambia el filtro de búsqueda o estado
@@ -203,7 +214,34 @@ export default function AlumnosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.length === 0 ? (
+              {isLoading ? (
+                // Skeleton para tabla
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-8 w-8 rounded" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={7}

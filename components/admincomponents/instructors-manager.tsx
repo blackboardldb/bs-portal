@@ -33,6 +33,7 @@ import {
 import { Plus, Edit, Trash2, Search } from "lucide-react";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { Instructor } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function InstructorsManager() {
   const {
@@ -45,6 +46,8 @@ export function InstructorsManager() {
     fetchInstructors,
     instructorsPagination,
   } = useBlackSheepStore();
+
+  const [isLoading, setIsLoading] = useState(true);
 
   // Estado de paginación y filtros
   const [page, setPage] = useState(1);
@@ -65,13 +68,21 @@ export function InstructorsManager() {
 
   // Cargar instructores al montar el componente y cuando cambian filtros/página
   useEffect(() => {
-    fetchInstructors(
-      page,
-      limit,
-      searchTerm,
-      roleFilter !== "todos" ? roleFilter : "",
-      activeFilter !== "todos" ? activeFilter : ""
-    );
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await fetchInstructors(
+          page,
+          limit,
+          searchTerm,
+          roleFilter !== "todos" ? roleFilter : "",
+          activeFilter !== "todos" ? activeFilter : ""
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, [page, searchTerm, roleFilter, activeFilter, fetchInstructors]);
 
   // Resetear página si cambia el filtro de búsqueda o estado
@@ -442,7 +453,31 @@ export function InstructorsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {instructors.length === 0 ? (
+              {isLoading ? (
+                // Skeleton para tabla
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-40" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-28" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-8 w-16 rounded" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : instructors.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={6}

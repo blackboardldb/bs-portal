@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { DayOfWeek, Discipline, CancellationRule } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus,
   X,
@@ -62,6 +63,8 @@ export default function ScheduleManagerImproved() {
     fetchDisciplines,
   } = useBlackSheepStore();
 
+  const [isLoading, setIsLoading] = useState(true);
+
   // Estados para gestión de disciplinas
   const [showDisciplineModal, setShowDisciplineModal] = useState(false);
   const [editingDiscipline, setEditingDiscipline] = useState<string | null>(
@@ -85,7 +88,15 @@ export default function ScheduleManagerImproved() {
 
   // Cargar disciplinas al montar el componente
   useEffect(() => {
-    fetchDisciplines();
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await fetchDisciplines();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, [fetchDisciplines]);
 
   // --- Gestión de disciplinas ---
@@ -261,7 +272,47 @@ export default function ScheduleManagerImproved() {
 
       {/* Lista de disciplinas */}
       <div className="grid grid-cols-1 gap-4">
-        {disciplines.length === 0 ? (
+        {isLoading ? (
+          // Skeleton simplificado para cards de disciplinas
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="w-4 h-4 rounded-full" />
+                    <Skeleton className="h-6 w-32" />
+                  </div>
+                  <div className="flex gap-1">
+                    <Skeleton className="w-8 h-8 rounded" />
+                    <Skeleton className="w-8 h-8 rounded" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Skeleton className="h-4 w-2/3 mb-3" />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="w-4 h-4 rounded" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-5 w-12 rounded-full" />
+                    </div>
+                    <Skeleton className="h-6 w-20 rounded" />
+                  </div>
+                  <div className="ml-6 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-3 w-12" />
+                      <div className="flex gap-1">
+                        <Skeleton className="h-5 w-12 rounded-full" />
+                        <Skeleton className="h-5 w-12 rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : disciplines.length === 0 ? (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
