@@ -11,6 +11,7 @@ import {
   Calendar,
   CreditCard,
   Settings,
+  Bell,
 } from "lucide-react";
 
 const navigation = [
@@ -18,7 +19,7 @@ const navigation = [
   { name: "Alumnos", href: "/admin/alumnos", icon: Users },
   { name: "Instructores", href: "/admin/instructores", icon: GraduationCap },
   { name: "calendario", href: "/admin/calendario", icon: Users },
-  { name: "Aprobación de Usuarios", href: "/admin/alertas", icon: UserCheck },
+  { name: "Notificaciones", href: "/admin/alertas", icon: Bell },
   { name: "Horarios", href: "/admin/horarios", icon: Calendar },
   { name: "Planes", href: "/admin/planes", icon: CreditCard },
   { name: "Configuración", href: "/admin/configuraciones", icon: Settings },
