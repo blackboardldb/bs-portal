@@ -125,7 +125,9 @@ export function Calendar() {
             ? `${instructor.firstName} ${instructor.lastName}`
             : "Por asignar",
           duration: `${cls.durationMinutes || 60} min`,
-          alumnRegistred: cls.registeredParticipantsIds.length.toString(),
+          alumnRegistred: `${cls.registeredParticipantsIds.length}/${
+            cls.capacity || 15
+          }`,
           status: cls.status,
           discipline: discipline?.name || cls.name,
           disciplineId: cls.disciplineId,
@@ -331,7 +333,9 @@ export function Calendar() {
         ? `${instructor.firstName} ${instructor.lastName}`
         : "Por asignar",
       duration: `${cls.durationMinutes || 60} min`,
-      alumnRegistred: cls.registeredParticipantsIds.length.toString(),
+      alumnRegistred: `${cls.registeredParticipantsIds.length}/${
+        cls.capacity || 15
+      }`,
       isRegistered: false,
       status: cls.status,
       discipline: discipline?.name || cls.name,

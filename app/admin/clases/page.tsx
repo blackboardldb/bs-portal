@@ -53,7 +53,9 @@ export default function AdminClasesPage() {
       name: discipline?.name || session.name,
       instructor: "Por asignar",
       duration: "60 min",
-      alumnRegistred: session.registeredParticipantsIds.length.toString(),
+      alumnRegistred: `${session.registeredParticipantsIds.length}/${
+        session.capacity || 15
+      }`,
       isRegistered: false,
     };
   };
