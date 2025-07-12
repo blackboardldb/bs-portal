@@ -121,12 +121,14 @@ class MockPrismaClient {
     user: FitCenterUserProfile[];
     discipline: Discipline[];
     instructor: Instructor[];
+    membershipPlan: MembershipPlan[];
     notification: Notification[];
   } = {
     classSession: [],
     user: [...initialUsers],
     discipline: [...initialDisciplines],
     instructor: [...initialInstructors],
+    membershipPlan: [...initialMembershipPlans],
     notification: [],
   };
 
@@ -411,6 +413,203 @@ class MockPrismaClient {
     },
   };
 
+  instructor = {
+    findMany: async (params?: {
+      where?: {
+        isActive?: boolean;
+        role?: string;
+        OR?: Array<{
+          firstName?: { contains?: string; mode?: string };
+          lastName?: { contains?: string; mode?: string };
+          email?: { contains?: string; mode?: string };
+        }>;
+      };
+      take?: number;
+      skip?: number;
+      orderBy?: { [key: string]: "asc" | "desc" };
+    }) => {
+      let results = [...this.data.instructor];
+
+      if (params?.where) {
+        if (params.where.isActive !== undefined) {
+          results = results.filter(
+            (i) => i.isActive === params.where!.isActive
+          );
+        }
+        if (params.where.role) {
+          results = results.filter((i) => i.role === params.where!.role);
+        }
+        if (params.where.OR) {
+          const searchConditions = params.where.OR;
+          results = results.filter((i) =>
+            searchConditions.some((condition) => {
+              const searchTerm =
+                condition.firstName?.contains?.toLowerCase() ||
+                condition.lastName?.contains?.toLowerCase() ||
+                condition.email?.contains?.toLowerCase() ||
+                "";
+              return (
+                i.firstName.toLowerCase().includes(searchTerm) ||
+                i.lastName.toLowerCase().includes(searchTerm) ||
+                i.email.toLowerCase().includes(searchTerm)
+              );
+            })
+          );
+        }
+      }
+
+      if (params?.orderBy) {
+        const [field, direction] = Object.entries(params.orderBy)[0];
+        results.sort((a, b) => {
+          const aVal = (a as any)[field];
+          const bVal = (b as any)[field];
+          return direction === "asc"
+            ? String(aVal).localeCompare(String(bVal))
+            : String(bVal).localeCompare(String(aVal));
+        });
+      }
+
+      const skip = params?.skip || 0;
+      const take = params?.take || results.length;
+      return results.slice(skip, skip + take);
+    },
+
+    count: async (params?: { where?: any }) => {
+      // Reutilizar la lógica de findMany sin la paginación para obtener el total filtrado
+      const allFiltered = await this.instructor.findMany({
+        where: params?.where,
+      });
+      return allFiltered.length;
+    },
+
+    create: async (params: any) => {
+      const newInstructor: Instructor = {
+        ...params.data,
+        id:
+          params.data.id ||
+          `inst_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+      this.data.instructor.push(newInstructor);
+      return newInstructor;
+    },
+
+    update: async (params: any) => {
+      const index = this.data.instructor.findIndex(
+        (i) => i.id === params.where.id
+      );
+      if (index === -1) throw new Error("Instructor not found");
+      this.data.instructor[index] = {
+        ...this.data.instructor[index],
+        ...(params.data as Partial<Instructor>),
+      };
+      return this.data.instructor[index];
+    },
+
+    delete: async (params: any) => {
+      const index = this.data.instructor.findIndex(
+        (i) => i.id === params.where.id
+      );
+      if (index === -1) throw new Error("Instructor not found");
+      const deleted = this.data.instructor.splice(index, 1)[0];
+      return deleted;
+    },
+  };
+
+  membershipPlan = {
+    findMany: async (params?: {
+      where?: {
+        isActive?: boolean;
+        OR?: Array<{
+          name?: { contains?: string; mode?: string };
+          description?: { contains?: string; mode?: string };
+        }>;
+      };
+      take?: number;
+      skip?: number;
+      orderBy?: { [key: string]: "asc" | "desc" };
+    }) => {
+      let results = [...this.data.membershipPlan];
+
+      if (params?.where) {
+        if (params.where.isActive !== undefined) {
+          results = results.filter(
+            (p) => p.isActive === params.where!.isActive
+          );
+        }
+        if (params.where.OR) {
+          const searchConditions = params.where.OR;
+          results = results.filter((p) =>
+            searchConditions.some((condition) => {
+              const searchTerm =
+                condition.name?.contains?.toLowerCase() ||
+                condition.description?.contains?.toLowerCase() ||
+                "";
+              return (
+                p.name.toLowerCase().includes(searchTerm) ||
+                p.description.toLowerCase().includes(searchTerm)
+              );
+            })
+          );
+        }
+      }
+
+      if (params?.orderBy) {
+        const [field, direction] = Object.entries(params.orderBy)[0];
+        results.sort((a, b) => {
+          const aVal = (a as any)[field];
+          const bVal = (b as any)[field];
+          return direction === "asc"
+            ? String(aVal).localeCompare(String(bVal))
+            : String(bVal).localeCompare(String(aVal));
+        });
+      }
+
+      const skip = params?.skip || 0;
+      const take = params?.take || results.length;
+      return results.slice(skip, skip + take);
+    },
+
+    count: async (params?: { where?: any }) => {
+      // Reutilizar la lógica de findMany sin la paginación para obtener el total filtrado
+      const allFiltered = await this.membershipPlan.findMany({
+        where: params?.where,
+      });
+      return allFiltered.length;
+    },
+
+    create: async (params: any) => {
+      const newPlan: MembershipPlan = {
+        ...params.data,
+        id:
+          params.data.id ||
+          `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      };
+      this.data.membershipPlan.push(newPlan);
+      return newPlan;
+    },
+
+    update: async (params: any) => {
+      const index = this.data.membershipPlan.findIndex(
+        (p) => p.id === params.where.id
+      );
+      if (index === -1) throw new Error("Plan not found");
+      this.data.membershipPlan[index] = {
+        ...this.data.membershipPlan[index],
+        ...(params.data as Partial<MembershipPlan>),
+      };
+      return this.data.membershipPlan[index];
+    },
+
+    delete: async (params: any) => {
+      const index = this.data.membershipPlan.findIndex(
+        (p) => p.id === params.where.id
+      );
+      if (index === -1) throw new Error("Plan not found");
+      const deleted = this.data.membershipPlan.splice(index, 1)[0];
+      return deleted;
+    },
+  };
+
   notification = {
     create: async (params: any) => {
       const newNotification: Notification = {
@@ -432,185 +631,6 @@ class MockPrismaClient {
       return results;
     },
   };
-}
-
-// Funciones helper para instructores con paginación del servidor
-export function getInstructors(
-  page: number = 1,
-  limit: number = 10,
-  search: string = "",
-  role: string = "",
-  isActive?: string | null
-): Instructor[] {
-  let results = [...initialInstructors];
-
-  // Filtro de búsqueda
-  if (search) {
-    const searchLower = search.toLowerCase();
-    results = results.filter(
-      (instructor) =>
-        instructor.firstName.toLowerCase().includes(searchLower) ||
-        instructor.lastName.toLowerCase().includes(searchLower) ||
-        instructor.email.toLowerCase().includes(searchLower)
-    );
-  }
-
-  // Filtro por rol
-  if (role) {
-    results = results.filter((instructor) => instructor.role === role);
-  }
-
-  // Filtro por estado activo
-  if (isActive !== undefined && isActive !== null) {
-    const active = isActive === "true";
-    results = results.filter((instructor) => instructor.isActive === active);
-  }
-
-  // Aplicar paginación
-  const skip = (page - 1) * limit;
-  return results.slice(skip, skip + limit);
-}
-
-export function getInstructorsCount(
-  search: string = "",
-  role: string = "",
-  isActive?: string | null
-): number {
-  let results = [...initialInstructors];
-
-  // Aplicar los mismos filtros que en getInstructors
-  if (search) {
-    const searchLower = search.toLowerCase();
-    results = results.filter(
-      (instructor) =>
-        instructor.firstName.toLowerCase().includes(searchLower) ||
-        instructor.lastName.toLowerCase().includes(searchLower) ||
-        instructor.email.toLowerCase().includes(searchLower)
-    );
-  }
-
-  if (role) {
-    results = results.filter((instructor) => instructor.role === role);
-  }
-
-  if (isActive !== undefined && isActive !== null) {
-    const active = isActive === "true";
-    results = results.filter((instructor) => instructor.isActive === active);
-  }
-
-  return results.length;
-}
-
-export function addInstructor(instructor: Omit<Instructor, "id">): Instructor {
-  const newInstructor: Instructor = {
-    ...instructor,
-    id: `inst_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-  };
-  initialInstructors.push(newInstructor);
-  return newInstructor;
-}
-
-export function updateInstructor(instructor: Instructor): Instructor {
-  const index = initialInstructors.findIndex((i) => i.id === instructor.id);
-  if (index === -1) {
-    throw new Error("Instructor not found");
-  }
-  initialInstructors[index] = instructor;
-  return instructor;
-}
-
-export function deleteInstructor(id: string): boolean {
-  const index = initialInstructors.findIndex((i) => i.id === id);
-  if (index === -1) {
-    return false;
-  }
-  initialInstructors.splice(index, 1);
-  return true;
-}
-
-// Funciones helper para planes con paginación del servidor
-export function getPlans(
-  page: number = 1,
-  limit: number = 10,
-  search: string = "",
-  isActive?: string | null
-): MembershipPlan[] {
-  let results = [...initialMembershipPlans];
-
-  // Filtro de búsqueda
-  if (search) {
-    const searchLower = search.toLowerCase();
-    results = results.filter(
-      (plan) =>
-        plan.name.toLowerCase().includes(searchLower) ||
-        plan.description.toLowerCase().includes(searchLower)
-    );
-  }
-
-  // Filtro por estado activo
-  if (isActive !== undefined && isActive !== null) {
-    const active = isActive === "true";
-    results = results.filter((plan) => plan.isActive === active);
-  }
-
-  // Aplicar paginación
-  const skip = (page - 1) * limit;
-  return results.slice(skip, skip + limit);
-}
-
-export function getPlansCount(
-  search: string = "",
-  isActive?: string | null
-): number {
-  let results = [...initialMembershipPlans];
-
-  // Aplicar los mismos filtros que en getPlans
-  if (search) {
-    const searchLower = search.toLowerCase();
-    results = results.filter(
-      (plan) =>
-        plan.name.toLowerCase().includes(searchLower) ||
-        plan.description.toLowerCase().includes(searchLower)
-    );
-  }
-
-  if (isActive !== undefined && isActive !== null) {
-    const active = isActive === "true";
-    results = results.filter((plan) => plan.isActive === active);
-  }
-
-  return results.length;
-}
-
-export function addPlan(plan: Omit<MembershipPlan, "id">): MembershipPlan {
-  const newPlan: MembershipPlan = {
-    ...plan,
-    id: `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-  };
-  initialMembershipPlans.push(newPlan);
-  return newPlan;
-}
-
-export function updatePlan(plan: MembershipPlan): MembershipPlan {
-  const index = initialMembershipPlans.findIndex(
-    (p: MembershipPlan) => p.id === plan.id
-  );
-  if (index === -1) {
-    throw new Error("Plan not found");
-  }
-  initialMembershipPlans[index] = plan;
-  return plan;
-}
-
-export function deletePlan(id: string): boolean {
-  const index = initialMembershipPlans.findIndex(
-    (p: MembershipPlan) => p.id === id
-  );
-  if (index === -1) {
-    return false;
-  }
-  initialMembershipPlans.splice(index, 1);
-  return true;
 }
 
 export const prisma = new MockPrismaClient();

@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getPlans,
-  getPlansCount,
-  addPlan,
-  updatePlan,
-  deletePlan,
-} from "@/lib/mock-database";
+import { prisma } from "@/lib/mock-database";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,11 +21,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Obtener planes con filtros
-    const plans = getPlans(page, limit, search, isActive);
+    // Construir where clause
+    const whereClause: any = {};
+    if (isActive && isActive !== "todos") {
+      whereClause.isActive = isActive === "true";
+    }
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    // Obtener planes con filtros y paginación
+    const plans = await prisma.membershipPlan.findMany({
+      where: whereClause,
+      take: limit,
+      skip: (page - 1) * limit,
+      orderBy: { name: "asc" },
+    });
 
     // Obtener total de planes para paginación
-    const total = getPlansCount(search, isActive);
+    const total = await prisma.membershipPlan.count({ where: whereClause });
 
     // Calcular metadatos de paginación
     const totalPages = Math.ceil(total / limit);
@@ -69,7 +80,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create plan
-    const newPlan = addPlan(planData);
+    const newPlan = await prisma.membershipPlan.create({
+      data: planData,
+    });
 
     return NextResponse.json(newPlan, { status: 201 });
   } catch (error) {
@@ -94,7 +107,10 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update plan
-    const updatedPlan = updatePlan(planData);
+    const updatedPlan = await prisma.membershipPlan.update({
+      where: { id: planData.id },
+      data: planData,
+    });
 
     return NextResponse.json(updatedPlan);
   } catch (error) {
@@ -116,11 +132,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete plan
-    const success = deletePlan(id);
-
-    if (!success) {
-      return NextResponse.json({ error: "Plan not found" }, { status: 404 });
-    }
+    await prisma.membershipPlan.delete({
+      where: { id },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

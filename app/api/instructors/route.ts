@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getInstructors, getInstructorsCount } from "@/lib/mock-database";
+import { prisma } from "@/lib/mock-database";
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,11 +22,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Obtener instructores con filtros
-    const instructors = getInstructors(page, limit, search, role, isActive);
+    // Construir where clause
+    const whereClause: any = {};
+    if (role && role !== "todos") whereClause.role = role;
+    if (isActive && isActive !== "todos") {
+      whereClause.isActive = isActive === "true";
+    }
+    if (search) {
+      whereClause.OR = [
+        { firstName: { contains: search, mode: "insensitive" } },
+        { lastName: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    // Obtener instructores con filtros y paginación
+    const instructors = await prisma.instructor.findMany({
+      where: whereClause,
+      take: limit,
+      skip: (page - 1) * limit,
+      orderBy: { firstName: "asc" },
+    });
 
     // Obtener total de instructores para paginación
-    const total = getInstructorsCount(search, role, isActive);
+    const total = await prisma.instructor.count({ where: whereClause });
 
     // Calcular metadatos de paginación
     const totalPages = Math.ceil(total / limit);
