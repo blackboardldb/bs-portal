@@ -383,15 +383,40 @@ export function Calendar() {
 
   const handleCancelClass = async (classId: string) => {
     try {
+      // Si es una clase generada dinámicamente, solo actualizar el estado local
+      if (classId.startsWith("gen_")) {
+        setMonthlyClasses((prev) =>
+          prev.map((cls) =>
+            cls.id === classId ? { ...cls, status: "cancelled" } : cls
+          )
+        );
+
+        toast({
+          title: "Clase Cancelada",
+          description: `Clase generada cancelada localmente.`,
+        });
+        return;
+      }
+
+      // Para clases reales, usar la API
       const response = await fetch(`/api/classes/${classId}/admin/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
       if (response.ok) {
+        // Actualizar el estado local inmediatamente
+        setMonthlyClasses((prev) =>
+          prev.map((cls) =>
+            cls.id === classId ? { ...cls, status: "cancelled" } : cls
+          )
+        );
+
+        // También actualizar desde el servidor
         await fetchClassSessions();
+
         toast({
           title: "Clase Cancelada",
-          description: `Clase con ID ${classId} cancelada.`,
+          description: `Clase cancelada exitosamente.`,
         });
       } else {
         const error = await response.json();
@@ -419,8 +444,23 @@ export function Calendar() {
           body: JSON.stringify({ date: selectedDate }),
         });
         if (response.ok) {
+          // Actualizar el estado local inmediatamente
+          setMonthlyClasses((prev) =>
+            prev.map((cls) => {
+              const classDate = new Date(cls.dateTime)
+                .toISOString()
+                .split("T")[0];
+              return classDate === selectedDate
+                ? { ...cls, status: "cancelled" }
+                : cls;
+            })
+          );
+
+          // También actualizar desde el servidor
           await fetchClassSessions();
           setShowCancelAllDialog(false);
+          setSelectedDate(null); // Cerrar el dialog
+
           toast({
             title: "Todas las Clases Canceladas",
             description: `Todas las clases programadas para el ${new Date(
@@ -803,6 +843,7 @@ export function Calendar() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleCancelClass(cls.id)}
+                        className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                       >
                         Cancelar
                       </Button>
@@ -833,7 +874,11 @@ export function Calendar() {
         isOpen={showClassDetails}
         onClose={() => setShowClassDetails(false)}
         classItem={selectedClass}
-        onCancelClass={handleCancelClass}
+        onCancelClass={async (classId: string) => {
+          await handleCancelClass(classId);
+          // Cerrar el drawer después de cancelar
+          setShowClassDetails(false);
+        }}
       />
 
       <AlertDialog

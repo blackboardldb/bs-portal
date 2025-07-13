@@ -131,6 +131,12 @@ export default function AdminClassDetailDrawer({
     setIsLoading(true);
     try {
       await onCancelClass(currentClassItem.id);
+
+      // Actualizar el estado local de la clase
+      setCurrentClassItem((prev) =>
+        prev ? { ...prev, status: "cancelled" } : null
+      );
+
       onClose();
     } catch (error) {
       console.error("Error canceling class:", error);
