@@ -28,6 +28,12 @@ interface AdminClassDetailDrawerProps {
     duration: string;
     alumnRegistred: string;
     isRegistered: boolean;
+    status?: string;
+    disciplineId?: string;
+    capacity?: number;
+    notes?: string;
+    registeredParticipantsIds?: string[];
+    waitlistParticipantsIds?: string[];
   } | null;
   onCancelClass: (classId: string) => void;
 }
@@ -38,7 +44,7 @@ export default function AdminClassDetailDrawer({
   classItem,
   onCancelClass,
 }: AdminClassDetailDrawerProps) {
-  const { users } = useBlackSheepStore();
+  const { users, disciplines } = useBlackSheepStore();
   const [isLoading, setIsLoading] = useState(false);
 
   if (!classItem) return null;
@@ -48,6 +54,16 @@ export default function AdminClassDetailDrawer({
     locale: es,
   });
   const formattedTime = format(classDateTime, "p", { locale: es });
+
+  // CONTEXTO: Buscar la disciplina y su regla de cancelación aplicable
+  const discipline = disciplines.find((d) => d.id === classItem.disciplineId);
+  const applicableCancellationRule = discipline?.cancellationRules?.find(
+    (rule) => {
+      const ruleTime = rule.time;
+      const classTime = format(classDateTime, "HH:mm");
+      return ruleTime === classTime;
+    }
+  );
 
   const enrolledStudents = users.filter((user: FitCenterUserProfile) =>
     classItem.registeredParticipantsIds?.includes(user.id)
@@ -144,6 +160,39 @@ export default function AdminClassDetailDrawer({
                     </div>
                   </div>
                 )}
+
+                {/* Reglas de cancelación */}
+                {applicableCancellationRule && (
+                  <div className="flex items-start gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="font-medium">Política de Cancelación</p>
+                      <p className="text-sm text-muted-foreground">
+                        Se puede cancelar hasta{" "}
+                        {applicableCancellationRule.hoursBefore} horas antes de
+                        la clase
+                        {applicableCancellationRule.description && (
+                          <span className="block mt-1 text-xs text-blue-600">
+                            💡 {applicableCancellationRule.description}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Regla de cancelación por defecto si no hay regla específica */}
+                {!applicableCancellationRule && discipline && (
+                  <div className="flex items-start gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="font-medium">Política de Cancelación</p>
+                      <p className="text-sm text-muted-foreground">
+                        Política general de la disciplina aplica
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -216,7 +265,7 @@ export default function AdminClassDetailDrawer({
               <Button variant="outline" onClick={onClose}>
                 Cerrar
               </Button>
-              {classItem.status !== "cancelled" && onCancelClass && (
+              {classItem.status !== "cancelled" && (
                 <Button
                   variant="destructive"
                   onClick={handleCancelClass}
