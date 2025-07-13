@@ -237,6 +237,7 @@ export interface ClassSession {
   waitlistParticipantsIds: string[]; // IDs de usuarios en lista de espera - Cambiado a string[]
   status: ClassStatus; // "scheduled" | "cancelled" | "completed" | "in_progress"
   notes?: string; // Notas para la clase (ej. WOD)
+  isGenerated?: boolean; // Flag para identificar clases generadas dinámicamente
 }
 
 // Interface para el Instructor (nueva entidad para una gestión más robusta)

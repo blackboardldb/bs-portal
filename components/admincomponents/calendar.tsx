@@ -34,6 +34,7 @@ import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
 import { ClassSession, DayOfWeek } from "@/lib/types";
 import AdminClassDetailDrawer from "./admin-class-detail-drawer";
+import { useClassSchedule } from "@/lib/hooks/useClassSchedule";
 import {
   Plus,
   ChevronLeft,
@@ -45,6 +46,8 @@ import {
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
+  startOfWeek,
+  endOfWeek,
   getDay,
   getYear,
   getMonth,
@@ -106,9 +109,6 @@ type ExtraClassFormData = {
 
 export function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  // CONTEXTO: Este estado local contendrá las clases generadas para el mes visible.
-  // Es más eficiente que usar el store global para esto.
-  const [monthlyClasses, setMonthlyClasses] = useState<ClassSession[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isAddingClass, setIsAddingClass] = useState(false);
   const [showCancelAllDialog, setShowCancelAllDialog] = useState(false);
@@ -116,8 +116,10 @@ export function Calendar() {
     null
   );
   const [showClassDetails, setShowClassDetails] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isGeneratingClasses, setIsGeneratingClasses] = useState(false);
+  const [selectedDiscipline, setSelectedDiscipline] = useState<string>("all"); // Nuevo estado para filtro de disciplina
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false); // Nuevo estado para modal de inscripción
+  const [selectedClassForRegistration, setSelectedClassForRegistration] =
+    useState<TransformedClass | null>(null); // Clase seleccionada para inscripción
 
   // Estados para el formulario de clase extra
   const [extraClassForm, setExtraClassForm] = useState<ExtraClassFormData>({
@@ -127,6 +129,13 @@ export function Calendar() {
     time: "",
     capacity: 15,
   });
+
+  // CONTEXTO: Usar el nuevo hook para obtener clases del mes seleccionado
+  const {
+    classes: monthlyClasses,
+    isLoading,
+    error,
+  } = useClassSchedule(currentDate);
 
   // CONTEXTO: `classSessions` del store ahora se usará para obtener datos históricos
   // o para sobreescribir las clases generadas si ya existen en la "base de datos".
@@ -140,113 +149,324 @@ export function Calendar() {
 
   const { toast } = useToast();
 
-  // CONTEXTO: Esta es la función clave. Genera las clases para un mes basándose en los
-  // horarios de las disciplinas. Es rápida porque opera sobre datos en memoria.
-  const generateClassesForMonth = useCallback(
-    (date: Date, disciplines: any[]) => {
-      const start = startOfMonth(date);
-      const end = endOfMonth(date);
-      const daysInMonth = eachDayOfInterval({ start, end });
-      const dayMapping: DayOfWeek[] = [
-        "dom",
-        "lun",
-        "mar",
-        "mie",
-        "jue",
-        "vie",
-        "sab",
-      ];
-
-      const generatedClasses: ClassSession[] = [];
-
-      daysInMonth.forEach((day) => {
-        const dayOfWeek = dayMapping[getDay(day)];
-
-        disciplines.forEach((discipline) => {
-          const scheduleForDay = discipline.schedule?.find(
-            (s: any) => s.day === dayOfWeek
-          );
-          if (scheduleForDay) {
-            scheduleForDay.times.forEach((time: string) => {
-              const [hour, minute] = time.split(":");
-
-              // Usar las nuevas funciones de zona horaria
-              const localDate = createLocalDate(
-                day.getFullYear(),
-                day.getMonth() + 1,
-                day.getDate(),
-                parseInt(hour, 10),
-                parseInt(minute, 10)
-              );
-              const classDateTime = localToUTC(localDate, time);
-
-              generatedClasses.push({
-                id: `gen_${discipline.id}_${format(
-                  localDate,
-                  "yyyy-MM-dd_HH-mm"
-                )}`,
-                organizationId: "org_blacksheep_001",
-                disciplineId: discipline.id,
-                name: discipline.name,
-                dateTime: classDateTime,
-                durationMinutes: 60, // Se puede hacer configurable en la disciplina
-                instructorId: "inst_default", // Lógica de asignación puede ir aquí
-                capacity: 15, // Se puede hacer configurable
-                registeredParticipantsIds: [],
-                waitlistParticipantsIds: [],
-                status: "scheduled",
-                notes:
-                  "Clase generada dinámicamente desde horarios de disciplina",
-              });
-            });
-          }
-        });
-      });
-
-      setMonthlyClasses(generatedClasses);
-    },
-    []
-  );
-
+  // Cargar datos básicos al montar
   useEffect(() => {
-    setIsLoading(true);
-    fetchClassSessions();
     fetchUsers();
-    // CONTEXTO: Asegurarse de que las disciplinas están cargadas.
     if (disciplines.length === 0) {
       fetchDisciplines();
     }
-    setIsLoading(false);
-  }, [fetchClassSessions, fetchUsers, fetchDisciplines, disciplines.length]);
+  }, [fetchUsers, fetchDisciplines, disciplines.length]);
 
-  // CONTEXTO: Este efecto se encarga de (re)generar las clases cada vez que
-  // el usuario cambia de mes o cuando las disciplinas (nuestra fuente de verdad) se cargan.
-  useEffect(() => {
-    const now = new Date();
-    setIsGeneratingClasses(true);
+  // CONTEXTO: Función helper para formatear fechas sin problemas de zona horaria
+  const formatDateForDisplay = (dateString: string) => {
+    return formatDateLocal(dateString, {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
 
-    // Si el mes que se ve es anterior al actual
-    if (
-      getYear(currentDate) < getYear(now) ||
-      (getYear(currentDate) === getYear(now) &&
-        getMonth(currentDate) < getMonth(now))
-    ) {
-      // Cargar datos históricos desde la API
-      const start = format(startOfMonth(currentDate), "yyyy-MM-dd");
-      const end = format(endOfMonth(currentDate), "yyyy-MM-dd");
-      fetchClassSessions(start, end).then((data) => {
-        setMonthlyClasses(data.classes);
-        setIsGeneratingClasses(false);
-      });
-    } else {
-      // Generar clases para el mes actual o futuro
-      if (disciplines.length > 0) {
-        generateClassesForMonth(currentDate, disciplines);
-        setIsGeneratingClasses(false);
+  // CONTEXTO: Función helper para obtener fecha en formato YYYY-MM-DD sin zona horaria
+  const getDateString = (date: Date) => {
+    return toDateString(date);
+  };
+
+  // CONTEXTO: Este `useMemo` ahora transforma las clases del hook en lugar de las clases globales del store.
+  const transformedClasses = useMemo(
+    () =>
+      monthlyClasses
+        .filter((cls: ClassSession) => {
+          // Filtrar por disciplina si se ha seleccionado una
+          if (selectedDiscipline !== "all") {
+            return cls.disciplineId === selectedDiscipline;
+          }
+          return true;
+        })
+        .map((cls: any): TransformedClass => {
+          const discipline = disciplines.find((d) => d.id === cls.disciplineId);
+          const instructor = users.find((u) => u.id === cls.instructorId);
+          const instructorName = instructor
+            ? `${instructor.firstName} ${instructor.lastName}`
+            : "Por asignar";
+
+          const classDate = new Date(cls.dateTime);
+          const isGenerated = cls.isGenerated || cls.id.startsWith("gen_");
+
+          return {
+            id: cls.id,
+            dateTime: cls.dateTime,
+            name: discipline?.name || cls.name,
+            instructor: instructorName,
+            duration: `${cls.durationMinutes} min`,
+            alumnRegistred: `${cls.registeredParticipantsIds.length}/${cls.capacity}`,
+            isRegistered: false, // TODO: Implementar lógica de registro
+            status: cls.status,
+            discipline: discipline?.name || "Desconocida",
+            disciplineId: cls.disciplineId,
+            date: cls.dateLocal || toDateString(cls.dateTime), // USAR FECHA LOCAL
+            time: toTimeString(cls.dateTime),
+            color: discipline?.color || "#3b82f6",
+            capacity: cls.capacity,
+            enrolled: cls.registeredParticipantsIds.length,
+            type: isGenerated ? "regular" : "extra",
+            cancelled: cls.status === "cancelled",
+            registeredParticipantsIds: cls.registeredParticipantsIds,
+            waitlistParticipantsIds: cls.waitlistParticipantsIds,
+            isGenerated,
+            isExtra: !isGenerated,
+            historicalData: {
+              averageAttendance: 12,
+              noShowRate: 0.1,
+              waitlistFrequency: 0.3,
+              popularityTrend: "stable",
+            },
+            notes: cls.notes || "",
+          };
+        }),
+    [monthlyClasses, disciplines, users, selectedDiscipline]
+  );
+
+  // CONTEXTO: Función para obtener los días del mes actual
+  const getDaysInMonth = (date: Date) => {
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    // Para que el calendario se muestre correctamente, necesitamos los días que completan la primera y última semana.
+    // El `startOfWeek` por defecto considera el Domingo como inicio de semana, lo que coincide con `dayNames`.
+    const calendarStart = startOfWeek(monthStart);
+    const calendarEnd = endOfWeek(monthEnd);
+
+    const daysInGrid = eachDayOfInterval({
+      start: calendarStart,
+      end: calendarEnd,
+    });
+
+    return daysInGrid.map((day) => ({
+      date: day,
+      dateString: getDateString(day),
+      isCurrentMonth: day.getMonth() === date.getMonth(),
+    }));
+  };
+
+  // CONTEXTO: Función para obtener clases de una fecha específica
+  const getClassesForDate = (dateString: string) => {
+    return transformedClasses.filter((cls) => cls.date === dateString);
+  };
+
+  // CONTEXTO: Función para navegar entre meses
+  const navigateMonth = (direction: "prev" | "next") => {
+    setCurrentDate((prev) => {
+      const newDate = new Date(prev);
+      if (direction === "prev") {
+        newDate.setMonth(newDate.getMonth() - 1);
+      } else {
+        newDate.setMonth(newDate.getMonth() + 1);
       }
-    }
-  }, [currentDate, disciplines, generateClassesForMonth, fetchClassSessions]);
+      return newDate;
+    });
+  };
 
+  // CONTEXTO: Función para manejar navegación por teclado
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      navigateMonth("prev");
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      navigateMonth("next");
+    }
+  };
+
+  // CONTEXTO: Función para agregar clase extra
+  const handleAddExtraClass = async (classData: ExtraClassFormData) => {
+    try {
+      const response = await fetch("/api/classes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          disciplineId: classData.disciplineId,
+          instructorId: classData.instructor,
+          date: classData.date,
+          time: classData.time,
+          capacity: classData.capacity,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Clase Extra Agregada",
+          description: "La clase extra ha sido agregada exitosamente.",
+        });
+        setIsAddingClass(false);
+        // Recargar clases del día
+        // El hook se encargará de recargar automáticamente
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error al Agregar Clase",
+          description: error.message || "Error al agregar la clase extra.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error al Agregar Clase",
+        description: "Error inesperado al agregar la clase extra.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // CONTEXTO: Función para cancelar clase individual
+  const handleCancelClass = async (classId: string) => {
+    try {
+      // Buscar la clase en el estado local
+      const classToCancel = monthlyClasses.find((cls) => cls.id === classId);
+
+      if (!classToCancel) {
+        toast({
+          title: "Error",
+          description: "Clase no encontrada.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Usar la nueva API unificada
+      const response = await fetch("/api/classes/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId,
+          classData: classToCancel,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Clase Cancelada",
+          description: "Clase cancelada exitosamente.",
+        });
+        // El hook se encargará de recargar automáticamente
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error al Cancelar Clase",
+          description: error.message || "Error al cancelar la clase.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error al Cancelar Clase",
+        description: "Error inesperado al cancelar la clase.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // CONTEXTO: Función para cancelar todas las clases de un día
+  const handleCancelAllClasses = async () => {
+    if (!selectedDate) return;
+
+    try {
+      const response = await fetch("/api/classes/admin/cancel-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: selectedDate }),
+      });
+
+      if (response.ok) {
+        setShowCancelAllDialog(false);
+        setSelectedDate(null);
+        toast({
+          title: "Clases Canceladas",
+          description: `Todas las clases futuras para el ${formatDateForDisplay(
+            selectedDate
+          )} han sido canceladas.`,
+        });
+        // El hook se encargará de recargar automáticamente
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error al Cancelar Clases",
+          description: error.message || "Error al cancelar las clases.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error al Cancelar Clases",
+        description: "Error inesperado al cancelar las clases.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // CONTEXTO: Función para ver detalles de la clase
+  const handleViewClassDetails = (cls: TransformedClass) => {
+    setSelectedClass(cls);
+    setShowClassDetails(true);
+  };
+
+  // CONTEXTO: Función para abrir modal de inscripción
+  const handleOpenRegistration = (cls: TransformedClass) => {
+    setSelectedClassForRegistration(cls);
+    setShowRegistrationModal(true);
+  };
+
+  // CONTEXTO: Función para registrar estudiante en una clase
+  const handleRegisterStudent = async (studentId: string) => {
+    if (!selectedClassForRegistration) return;
+
+    try {
+      const response = await fetch("/api/classes/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId: selectedClassForRegistration.id,
+          studentId: studentId,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Estudiante Registrado",
+          description:
+            "El estudiante ha sido registrado exitosamente en la clase.",
+        });
+        setShowRegistrationModal(false);
+        setSelectedClassForRegistration(null);
+        // El hook se encargará de recargar automáticamente
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error al Registrar",
+          description: error.message || "Error al registrar el estudiante.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error al Registrar",
+        description: "Error inesperado al registrar el estudiante.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // CONTEXTO: Obtener clases para la fecha seleccionada
+  const classesForSelectedDate = useMemo(() => {
+    if (!selectedDate) return [];
+    return transformedClasses.filter(
+      (cls) => cls.date === selectedDate && !cls.cancelled
+    );
+  }, [selectedDate, transformedClasses]);
+
+  // CONTEXTO: Obtener días del mes actual
+  const days = getDaysInMonth(currentDate);
+
+  // CONTEXTO: Nombres de meses y días
   const monthNames = [
     "Enero",
     "Febrero",
@@ -264,6 +484,7 @@ export function Calendar() {
 
   const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
+  // CONTEXTO: Opciones de tiempo para el formulario
   const timeOptions = [
     "06:00",
     "06:30",
@@ -299,412 +520,43 @@ export function Calendar() {
     "21:30",
   ];
 
-  // Función helper para formatear fechas sin problemas de zona horaria
-  const formatDateForDisplay = (dateString: string) => {
-    return formatDateLocal(dateString, {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  // Función helper para obtener fecha en formato YYYY-MM-DD sin zona horaria
-  const getDateString = (date: Date) => {
-    return toDateString(date);
-  };
-
-  // CONTEXTO: Este `useMemo` ahora transforma las clases generadas localmente (`monthlyClasses`)
-  // en lugar de las clases globales del store. Esto hace que el calendario sea dinámico.
-  const transformedClasses = useMemo(
-    () =>
-      monthlyClasses.map((cls: ClassSession): TransformedClass => {
-        const discipline = disciplines.find((d) => d.id === cls.disciplineId);
-        const instructor = users.find((u) => u.id === cls.instructorId);
-
-        // Determinar si es clase generada o extra
-        const isGenerated = cls.id.startsWith("gen_");
-        const isExtra = cls.notes?.includes("Clase extra") || false;
-
-        return {
-          id: cls.id,
-          dateTime: cls.dateTime,
-          name: discipline?.name || cls.name,
-          instructor: instructor
-            ? `${instructor.firstName} ${instructor.lastName}`
-            : "Por asignar",
-          duration: `${cls.durationMinutes || 60} min`,
-          alumnRegistred: `${cls.registeredParticipantsIds.length}/${
-            cls.capacity || 15
-          }`,
-          isRegistered: cls.registeredParticipantsIds.length > 0, // Agregado para compatibilidad
-          status: cls.status,
-          discipline: discipline?.name || cls.name,
-          disciplineId: cls.disciplineId,
-          date: toDateString(cls.dateTime),
-          time: toTimeString(cls.dateTime),
-          color: discipline?.color || "#666",
-          capacity: cls.capacity,
-          enrolled: cls.registeredParticipantsIds.length,
-          type: isExtra ? "extra" : "regular",
-          cancelled: cls.status === "cancelled",
-          registeredParticipantsIds: cls.registeredParticipantsIds,
-          waitlistParticipantsIds: cls.waitlistParticipantsIds, // Agregado para compatibilidad
-          isGenerated,
-          isExtra,
-          historicalData: {
-            // TODO: Reemplazar con datos reales de la API cuando esté disponible
-            averageAttendance: Math.floor(Math.random() * 10) + 5,
-            noShowRate: Math.random() * 0.3,
-            waitlistFrequency: Math.random() * 0.2,
-            popularityTrend: ["up", "down", "stable"][
-              Math.floor(Math.random() * 3)
-            ] as "up" | "down" | "stable",
-          },
-          notes: cls.notes || "",
-        };
-      }),
-    [monthlyClasses, disciplines, users]
-  );
-
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days = [];
-
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      const prevDate = new Date(year, month, -i);
-      days.push({
-        date: prevDate,
-        isCurrentMonth: false,
-        dateString: getDateString(prevDate),
-      });
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      days.push({
-        date,
-        isCurrentMonth: true,
-        dateString: getDateString(date),
-      });
-    }
-
-    const remainingDays = 42 - days.length;
-    for (let day = 1; day <= remainingDays; day++) {
-      const nextDate = new Date(year, month + 1, day);
-      days.push({
-        date: nextDate,
-        isCurrentMonth: false,
-        dateString: getDateString(nextDate),
-      });
-    }
-
-    return days;
-  };
-
-  const days = useMemo(() => getDaysInMonth(currentDate), [currentDate]);
-
-  const getClassesForDate = (dateString: string) => {
-    return transformedClasses.filter(
-      (cls) => cls.date === dateString && !cls.cancelled
+  // CONTEXTO: Mostrar skeleton loader mientras carga
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-64" />
+          <div className="flex gap-4">
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <Skeleton key={i} className="h-32 w-full" />
+          ))}
+        </div>
+      </div>
     );
-  };
+  }
 
-  const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentDate((prev) => {
-      const newDate = new Date(prev);
-      if (direction === "prev") {
-        newDate.setMonth(prev.getMonth() - 1);
-      } else {
-        newDate.setMonth(prev.getMonth() + 1);
-      }
-      return newDate;
-    });
-  };
-
-  // Navegación por teclado
-  // Permite usar las flechas izquierda/derecha para navegar entre meses
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      navigateMonth("prev");
-    } else if (e.key === "ArrowRight") {
-      e.preventDefault();
-      navigateMonth("next");
-    }
-  };
-
-  const handleAddExtraClass = async (classData: ExtraClassFormData) => {
-    console.log("=== INICIO: handleAddExtraClass ===");
-    console.log("Datos del formulario:", classData);
-
-    const discipline = disciplines.find((d) => d.id === classData.disciplineId);
-    console.log("Disciplina encontrada:", discipline);
-
-    if (!discipline) {
-      console.error("❌ No se encontró la disciplina");
-      toast({
-        title: "Error al Agregar Clase Extra",
-        description: "Disciplina no encontrada.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const payload = {
-        startDate: classData.date,
-        endDate: classData.date,
-        disciplineId: classData.disciplineId,
-        instructorId: "inst_default",
-        time: classData.time,
-        maxCapacity: classData.capacity || 15,
-        notes: "Clase extra", // Marcar como clase extra
-      };
-
-      console.log("Payload a enviar:", payload);
-
-      const response = await fetch("/api/classes/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      console.log(
-        "Respuesta del servidor:",
-        response.status,
-        response.statusText
-      );
-
-      if (response.ok) {
-        const responseData = await response.json();
-        console.log("Datos de respuesta:", responseData);
-
-        // Agregar la nueva clase al estado local inmediatamente
-        if (responseData.classes && responseData.classes.length > 0) {
-          const newClass = responseData.classes[0]; // Tomamos la primera clase creada
-          setMonthlyClasses((prev) => [...prev, newClass]);
-          console.log("✅ Clase agregada al estado local:", newClass);
-        }
-
-        await fetchClassSessions();
-        setIsAddingClass(false);
-        // Resetear el formulario
-        setExtraClassForm({
-          disciplineId: "",
-          instructor: "",
-          date: "",
-          time: "",
-          capacity: 15,
-        });
-        toast({
-          title: "Clase Extra Agregada",
-          description: `Clase extra para ${
-            discipline.name
-          } el ${formatDateForDisplay(classData.date)} a las ${
-            classData.time
-          } agregada.`,
-        });
-        console.log("✅ Clase extra agregada exitosamente");
-      } else {
-        const error = await response.json();
-        console.error("❌ Error del servidor:", error);
-        toast({
-          title: "Error al Agregar Clase Extra",
-          description: error.message || "Error al agregar la clase extra.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("❌ Error inesperado:", error);
-      toast({
-        title: "Error al Agregar Clase Extra",
-        description: "Error inesperado al agregar la clase extra.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCancelClass = async (classId: string) => {
-    try {
-      // Buscar la clase en el estado local para verificar si es generada
-      const classToCancel = monthlyClasses.find((cls) => cls.id === classId);
-      const isGenerated = classToCancel?.id.startsWith("gen_") || false;
-
-      // Si es una clase generada dinámicamente, solo actualizar el estado local
-      if (isGenerated) {
-        setMonthlyClasses((prev) =>
-          prev.map((cls) =>
-            cls.id === classId ? { ...cls, status: "cancelled" } : cls
-          )
-        );
-
-        toast({
-          title: "Clase Cancelada",
-          description: `Clase generada cancelada localmente.`,
-        });
-        return;
-      }
-
-      // Para clases reales, usar la API
-      const response = await fetch(`/api/classes/${classId}/admin/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (response.ok) {
-        // Actualizar el estado local inmediatamente
-        setMonthlyClasses((prev) =>
-          prev.map((cls) =>
-            cls.id === classId ? { ...cls, status: "cancelled" } : cls
-          )
-        );
-
-        // También actualizar desde el servidor
-        await fetchClassSessions();
-
-        toast({
-          title: "Clase Cancelada",
-          description: `Clase cancelada exitosamente.`,
-        });
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error al Cancelar Clase",
-          description: error.message || "Error al cancelar la clase.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error al Cancelar Clase",
-        description: "Error inesperado al cancelar la clase.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCancelAllClasses = async () => {
-    console.log("🚀 handleCancelAllClasses iniciado con fecha:", selectedDate);
-    if (selectedDate) {
-      try {
-        console.log("📡 Enviando request a /api/classes/admin/cancel-bulk");
-        console.log("📦 Payload:", { date: selectedDate });
-
-        // Asegurar que la fecha esté en el formato correcto YYYY-MM-DD
-        const formattedDate = selectedDate.split("T")[0]; // Tomar solo la parte de la fecha
-        console.log("📅 Fecha formateada:", formattedDate);
-
-        // Debug adicional para verificar fechas
-        console.log("🔍 Debug de fechas:", {
-          selectedDate,
-          formattedDate,
-          classesForSelectedDate: classesForSelectedDate.map((cls) => ({
-            id: cls.id,
-            date: cls.date,
-            dateTime: cls.dateTime,
-            matchesSelectedDate: cls.date === selectedDate,
-          })),
-        });
-
-        const response = await fetch("/api/classes/admin/cancel-bulk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: formattedDate }),
-        });
-
-        console.log("📡 Response status:", response.status);
-        console.log("📡 Response ok:", response.ok);
-
-        if (response.ok) {
-          const responseData = await response.json();
-          console.log("✅ Response data:", responseData);
-
-          // Actualizar el estado local inmediatamente usando la fecha formateada
-          // Solo cancelar clases futuras
-          setMonthlyClasses((prev) =>
-            prev.map((cls) => {
-              // Usar la misma lógica que en transformedClasses para obtener la fecha
-              const classDate = toDateString(cls.dateTime);
-              return classDate === formattedDate && !isClassPast(cls.dateTime)
-                ? { ...cls, status: "cancelled" }
-                : cls;
-            })
-          );
-
-          // No regenerar las clases, solo sincronizar con el servidor
-          await fetchClassSessions();
-
-          setShowCancelAllDialog(false);
-          setSelectedDate(null); // Cerrar el dialog
-
-          const futureClassesCount = classesForSelectedDate.filter(
-            (cls) => !isClassPast(cls.dateTime)
-          ).length;
-          toast({
-            title: "Clases Canceladas",
-            description: `${futureClassesCount} clase${
-              futureClassesCount !== 1 ? "s" : ""
-            } futura${
-              futureClassesCount !== 1 ? "s" : ""
-            } para el ${formatDateForDisplay(
-              selectedDate
-            )} han sido canceladas.`,
-          });
-        } else {
-          const error = await response.json();
-          console.error("❌ API Error:", error);
-          toast({
-            title: "Error al Cancelar Todas las Clases",
-            description: error.message || "Error al cancelar todas las clases.",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error("❌ Error en handleCancelAllClasses:", error);
-        toast({
-          title: "Error al Cancelar Todas las Clases",
-          description: "Error inesperado al cancelar todas las clases.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const handleViewClassDetails = (cls: TransformedClass) => {
-    // CONTEXTO: Ahora recibimos una clase ya transformada, no necesitamos transformarla de nuevo
-    setSelectedClass(cls);
-    setShowClassDetails(true);
-  };
-
-  const classesForSelectedDate = useMemo(() => {
-    if (!selectedDate) return [];
-    const filtered = transformedClasses.filter(
-      (cls) => cls.date === selectedDate && !cls.cancelled
+  // CONTEXTO: Mostrar error si hay problemas
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Calendario de Clases</h2>
+        </div>
+        <div className="text-center py-8">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-red-600 mb-2">
+            Error al cargar clases
+          </h3>
+          <p className="text-gray-600">{error}</p>
+        </div>
+      </div>
     );
-    console.log("🔍 Debug classesForSelectedDate:", {
-      selectedDate,
-      totalClasses: transformedClasses.length,
-      filteredClasses: filtered.length,
-      allClassesForDate: transformedClasses.filter(
-        (cls) => cls.date === selectedDate
-      ),
-      // Debug de fechas para ver si hay problemas de zona horaria
-      sampleClasses: transformedClasses.slice(0, 3).map((cls) => ({
-        id: cls.id,
-        originalDateTime: cls.dateTime,
-        convertedDate: cls.date,
-        selectedDate: selectedDate,
-        matches: cls.date === selectedDate,
-      })),
-    });
-    return filtered;
-  }, [selectedDate, transformedClasses]);
+  }
 
   return (
     // Contenedor principal con navegación por teclado y focus management
@@ -712,6 +564,31 @@ export function Calendar() {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Calendario de Clases</h2>
         <div className="flex items-center gap-4">
+          {/* Filtro de disciplina */}
+          <div className="flex items-center gap-2">
+            <Label htmlFor="discipline-filter" className="text-sm font-medium">
+              Disciplina:
+            </Label>
+            <Select
+              value={selectedDiscipline}
+              onValueChange={setSelectedDiscipline}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todas las disciplinas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las disciplinas</SelectItem>
+                {disciplines
+                  .filter((d) => d.isActive)
+                  .map((discipline) => (
+                    <SelectItem key={discipline.id} value={discipline.id}>
+                      {discipline.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <Button
             onClick={() => {
               setExtraClassForm({
@@ -737,9 +614,9 @@ export function Calendar() {
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <h3 className="text-lg font-medium min-w-[200px] text-center">
+            <span className="text-lg font-semibold min-w-[200px] text-center">
               {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-            </h3>
+            </span>
             <Button
               variant="outline"
               size="sm"
@@ -752,526 +629,448 @@ export function Calendar() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-7 gap-2 mb-4">
-            {dayNames.map((day) => (
-              <div
-                key={day}
-                className="p-2 text-center font-medium text-sm text-muted-foreground"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-2">
-            {days.map((day, index) => {
-              const dayClasses = getClassesForDate(day.dateString);
-              const isToday = day.dateString === getDateString(new Date());
-
-              // Verificar si todas las clases del día ya pasaron
-              const allClassesPast =
-                dayClasses.length > 0 &&
-                dayClasses.every((cls) => isClassPast(cls.dateTime));
-
-              return (
-                <div
-                  key={index}
-                  className={`min-h-[120px] p-2 border rounded-lg text-left hover:bg-gray-50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1 cursor-pointer ${
-                    !day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""
-                  } ${isToday ? "bg-blue-50 border-blue-200" : ""} ${
-                    allClassesPast ? "opacity-70" : ""
-                  }`}
-                  onClick={() => setSelectedDate(day.dateString)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setSelectedDate(day.dateString);
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`Ver clases para ${formatDateForDisplay(
-                    day.dateString
-                  )}`}
-                >
-                  <div className="font-medium text-sm mb-1">
-                    {day.date.getDate()}
-                  </div>
-
-                  <div className="space-y-1">
-                    {/* Skeleton loaders mientras se cargan/generan las clases */}
-                    {(isLoading || isGeneratingClasses) &&
-                    day.isCurrentMonth ? (
-                      Array.from({ length: 3 }).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full rounded" />
-                      ))
-                    ) : (
-                      <>
-                        {dayClasses.slice(0, 3).map((cls) => (
-                          <div
-                            key={cls.id}
-                            className="text-xs p-1 rounded text-white truncate relative group"
-                            style={{ backgroundColor: cls.color }}
-                          >
-                            <div className="flex justify-between items-center">
-                              <span>
-                                {cls.time} {cls.discipline}
-                              </span>
-                              <div className="flex items-center gap-1">
-                                {cls.isExtra && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs"
-                                  >
-                                    Extra
-                                  </Badge>
-                                )}
-                                {/* Indicador de clase generada vs real */}
-                                {cls.isGenerated && !cls.isExtra && (
-                                  <span
-                                    className="text-xs opacity-75"
-                                    title="Clase generada dinámicamente"
-                                  >
-                                    🔄
-                                  </span>
-                                )}
-                                {!cls.isGenerated &&
-                                  cls.registeredParticipantsIds.length > 0 && (
-                                    <span
-                                      className="text-xs opacity-75"
-                                      title="Clase con actividad real"
-                                    >
-                                      ✅
-                                    </span>
-                                  )}
-                              </div>
-                            </div>
-
-                            {!isClassPast(cls.dateTime) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCancelClass(cls.id);
-                                }}
-                                className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label={`Cancelar clase ${cls.discipline}`}
-                              >
-                                <X className="w-2 h-2 text-white" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-
-                        {dayClasses.length > 3 && (
-                          <div className="text-xs text-muted-foreground">
-                            +{dayClasses.length - 3} más
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {isAddingClass && (
-        <Dialog open={isAddingClass} onOpenChange={setIsAddingClass}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Agregar Clase Extra</DialogTitle>
-            </DialogHeader>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                console.log("=== FORMULARIO ENVIADO ===");
-                console.log("Estado del formulario:", extraClassForm);
-                console.log("Disciplinas disponibles:", disciplines);
-
-                // Validación explícita
-                if (!extraClassForm.disciplineId) {
-                  console.error("❌ Falta disciplina");
-                  toast({
-                    title: "Error de Validación",
-                    description: "Por favor selecciona una disciplina.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-
-                if (!extraClassForm.date) {
-                  console.error("❌ Falta fecha");
-                  toast({
-                    title: "Error de Validación",
-                    description: "Por favor selecciona una fecha.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-
-                if (!extraClassForm.time) {
-                  console.error("❌ Falta hora");
-                  toast({
-                    title: "Error de Validación",
-                    description: "Por favor selecciona una hora.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-
-                console.log("✅ Validación pasada, enviando datos...");
-                handleAddExtraClass(extraClassForm);
-              }}
-              className="space-y-4"
+      {/* Calendario Grid */}
+      <div className="space-y-2">
+        {/* Header de días */}
+        <div className="grid grid-cols-7 gap-2">
+          {dayNames.map((day) => (
+            <div
+              key={day}
+              className="p-2 text-center font-medium text-sm text-muted-foreground"
             >
-              <div>
-                <Label htmlFor="discipline-select">Disciplina *</Label>
-                <Select
-                  value={extraClassForm.disciplineId}
-                  onValueChange={(value) =>
-                    setExtraClassForm((prev) => ({
-                      ...prev,
-                      disciplineId: value,
-                    }))
-                  }
-                  required
-                >
-                  <SelectTrigger
-                    id="discipline-select"
-                    aria-describedby="discipline-help"
-                  >
-                    <SelectValue placeholder="Seleccionar disciplina" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {disciplines.map((d) => (
-                      <SelectItem key={d.id} value={d.id.toString()}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p
-                  id="discipline-help"
-                  className="text-xs text-muted-foreground mt-1"
-                >
-                  Selecciona la disciplina para la clase extra
-                </p>
-              </div>
+              {day}
+            </div>
+          ))}
+        </div>
 
-              <div>
-                <Label htmlFor="instructor-input">Instructor (opcional)</Label>
-                <Input
-                  id="instructor-input"
-                  name="instructor"
-                  placeholder="Nombre del instructor"
-                  value={extraClassForm.instructor}
-                  onChange={(e) =>
-                    setExtraClassForm((prev) => ({
-                      ...prev,
-                      instructor: e.target.value,
-                    }))
-                  }
-                />
-              </div>
+        {/* Días del mes */}
+        <div className="grid grid-cols-7 gap-2">
+          {days.map((day, index) => {
+            const dayClasses = getClassesForDate(day.dateString);
+            const isToday = day.dateString === getDateString(new Date());
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="date-input">Fecha *</Label>
-                  <Input
-                    id="date-input"
-                    name="date"
-                    type="date"
-                    required
-                    value={extraClassForm.date}
-                    onChange={(e) =>
-                      setExtraClassForm((prev) => ({
-                        ...prev,
-                        date: e.target.value,
-                      }))
-                    }
-                  />
+            // Verificar si todas las clases del día ya pasaron
+            const allClassesPast =
+              dayClasses.length > 0 &&
+              dayClasses.every((cls) => isClassPast(cls.dateTime));
+
+            return (
+              <div
+                key={index}
+                className={`min-h-[120px] p-2 border rounded-lg text-left hover:bg-gray-50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1 cursor-pointer ${
+                  !day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""
+                } ${isToday ? "bg-blue-50 border-blue-200" : ""} ${
+                  allClassesPast ? "opacity-70" : ""
+                }`}
+                onClick={() => setSelectedDate(day.dateString)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedDate(day.dateString);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`Ver clases para ${formatDateForDisplay(
+                  day.dateString
+                )}`}
+              >
+                <div className="font-medium text-sm mb-1">
+                  {day.date.getDate()}
                 </div>
 
-                <div>
-                  <Label htmlFor="time-select">Hora *</Label>
-                  <Select
-                    value={extraClassForm.time}
-                    onValueChange={(value) =>
-                      setExtraClassForm((prev) => ({ ...prev, time: value }))
-                    }
-                    required
-                  >
-                    <SelectTrigger
-                      id="time-select"
-                      aria-describedby="time-help"
-                    >
-                      <SelectValue placeholder="Seleccionar hora" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {timeOptions.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {time}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p
-                    id="time-help"
-                    className="text-xs text-muted-foreground mt-1"
-                  >
-                    Selecciona la hora para la clase extra
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="capacity-input">Capacidad (opcional)</Label>
-                <Input
-                  id="capacity-input"
-                  name="capacity"
-                  type="number"
-                  placeholder="Máximo de alumnos"
-                  min="1"
-                  value={extraClassForm.capacity}
-                  onChange={(e) =>
-                    setExtraClassForm((prev) => ({
-                      ...prev,
-                      capacity: parseInt(e.target.value) || 15,
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsAddingClass(false);
-                    // Resetear el formulario
-                    setExtraClassForm({
-                      disciplineId: "",
-                      instructor: "",
-                      date: "",
-                      time: "",
-                      capacity: 15,
-                    });
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit">Agregar Clase</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {selectedDate && (
-        <Dialog
-          open={!!selectedDate}
-          onOpenChange={() => setSelectedDate(null)}
-        >
-          <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
-            <DialogHeader className="flex-shrink-0">
-              <DialogTitle>
-                Clases del {formatDateForDisplay(selectedDate)}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
-                <h4 className="font-medium">Clases programadas</h4>
-                <div className="flex gap-2">
-                  {classesForSelectedDate.filter(
-                    (cls) => !isClassPast(cls.dateTime)
-                  ).length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        console.log("🔘 Botón Cancelar Todas clickeado");
-                        console.log("📊 Estado actual:", {
-                          selectedDate,
-                          classesCount: classesForSelectedDate.length,
-                          showCancelAllDialog,
-                        });
-                        setShowCancelAllDialog(true);
+                <div className="space-y-1">
+                  {dayClasses.slice(0, 3).map((cls) => (
+                    <div
+                      key={cls.id}
+                      className={`text-xs p-1 rounded ${
+                        cls.cancelled
+                          ? "bg-red-100 text-red-700 line-through"
+                          : cls.isGenerated
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-green-100 text-green-700"
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewClassDetails(cls);
                       }}
-                      className="text-red-600 hover:text-red-700"
-                      aria-label={`Cancelar todas las clases del ${formatDateForDisplay(
-                        selectedDate
-                      )}`}
                     >
-                      <AlertTriangle className="w-4 h-4 mr-2" />
-                      Cancelar Todas (
-                      {
-                        classesForSelectedDate.filter(
-                          (cls) => !isClassPast(cls.dateTime)
-                        ).length
-                      }
-                      )
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setExtraClassForm({
-                        disciplineId: "",
-                        instructor: "",
-                        date: selectedDate,
-                        time: "",
-                        capacity: 15,
-                      });
-                      setIsAddingClass(true);
-                    }}
-                    aria-label={`Agregar clase extra para el ${formatDateForDisplay(
-                      selectedDate
-                    )}`}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Clase Extra
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
-                {classesForSelectedDate.map((cls) => (
-                  <div
-                    key={cls.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: cls.color }}
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium">
-                          {cls.time} - {cls.discipline}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {cls.instructor && `Instructor: ${cls.instructor} | `}
-                          {cls.enrolled}/{cls.capacity || "∞"} inscritos
-                          {/* Indicador de clase generada vs real */}
-                          {cls.isGenerated && !cls.isExtra && (
-                            <span
-                              className="ml-2 text-blue-600"
-                              title="Clase generada dinámicamente"
-                            >
-                              🔄 Generada
-                            </span>
-                          )}
-                          {cls.isExtra && (
-                            <span
-                              className="ml-2 text-orange-600"
-                              title="Clase extra"
-                            >
-                              ⭐ Extra
-                            </span>
-                          )}
-                          {!cls.isGenerated &&
-                            cls.registeredParticipantsIds.length > 0 && (
-                              <span
-                                className="ml-2 text-green-600"
-                                title="Clase con actividad real"
-                              >
-                                ✅ Con actividad
-                              </span>
-                            )}
-                        </div>
-
-                        {cls.notes && (
-                          <div className="mt-1 text-xs text-blue-600 bg-blue-50 p-1 rounded">
-                            💡 {cls.notes}
-                          </div>
-                        )}
+                      <div className="font-medium truncate">{cls.name}</div>
+                      <div className="text-xs opacity-75">
+                        {cls.time} • {cls.instructor}
                       </div>
-                      {cls.type === "extra" && (
-                        <Badge variant="secondary">Extra</Badge>
+                      {cls.isGenerated && (
+                        <div className="text-xs opacity-50">Generada</div>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2 ml-4">
-                      {!isClassPast(cls.dateTime) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCancelClass(cls.id)}
-                          className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                          aria-label={`Cancelar clase ${cls.discipline} del ${cls.time}`}
-                        >
-                          Cancelar
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
+                  ))}
+                  {dayClasses.length > 3 && (
+                    <div className="text-xs text-gray-500 text-center">
+                      +{dayClasses.length - 3} más
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Sección de clases del día seleccionado */}
+      {selectedDate && (
+        <div className="mt-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold">
+              Clases para {formatDateForDisplay(selectedDate)}
+            </h3>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(null)}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cerrar
+              </Button>
+              {classesForSelectedDate.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowCancelAllDialog(true)}
+                >
+                  Cancelar Todas
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {classesForSelectedDate.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No hay clases programadas para este día.</p>
+              <Button
+                variant="outline"
+                className="mt-2"
+                onClick={() => {
+                  setExtraClassForm({
+                    disciplineId: "",
+                    instructor: "",
+                    date: selectedDate,
+                    time: "",
+                    capacity: 15,
+                  });
+                  setIsAddingClass(true);
+                }}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Agregar Clase
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {classesForSelectedDate.map((cls) => (
+                <Card key={cls.id} className="relative">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-semibold text-lg">{cls.name}</h4>
+                        <p className="text-sm text-gray-600">
+                          {cls.instructor}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          cls.isGenerated
+                            ? "secondary"
+                            : cls.isExtra
+                            ? "default"
+                            : "outline"
+                        }
                         className="text-xs"
-                        onClick={() => handleViewClassDetails(cls)}
-                        aria-label={`Ver detalles de la clase ${cls.discipline} del ${cls.time}`}
                       >
-                        Ver detalles
+                        {cls.isGenerated
+                          ? "Generada"
+                          : cls.isExtra
+                          ? "Extra"
+                          : "Regular"}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Hora:</span>
+                        <span className="font-medium">{cls.time}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Duración:</span>
+                        <span className="font-medium">{cls.duration}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Inscritos:</span>
+                        <span className="font-medium">
+                          {cls.alumnRegistred}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleViewClassDetails(cls)}
+                      >
+                        Ver Detalles
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCancelClass(cls.id)}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleOpenRegistration(cls)}
+                        disabled={cls.enrolled >= cls.capacity}
+                      >
+                        {cls.enrolled >= cls.capacity ? "Lleno" : "Inscribir"}
                       </Button>
                     </div>
-                  </div>
-                ))}
-
-                {classesForSelectedDate.length === 0 && (
-                  <p className="text-muted-foreground text-center py-4">
-                    No hay clases disponibles para este día
-                  </p>
-                )}
-              </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </DialogContent>
-        </Dialog>
+          )}
+        </div>
       )}
 
-      <AdminClassDetailDrawer
-        isOpen={showClassDetails}
-        onClose={() => setShowClassDetails(false)}
-        classItem={selectedClass}
-        onCancelClass={async (classId: string) => {
-          await handleCancelClass(classId);
-          // Cerrar el drawer después de cancelar
-          setShowClassDetails(false);
-        }}
-      />
-
+      {/* Dialog para cancelar todas las clases */}
       <AlertDialog
         open={showCancelAllDialog}
         onOpenChange={setShowCancelAllDialog}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Cancelar todas las clases?</AlertDialogTitle>
+            <AlertDialogTitle>Cancelar Todas las Clases</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción cancelará todas las clases futuras programadas para el{" "}
-              {selectedDate && formatDateForDisplay(selectedDate)}. Las clases
-              que ya pasaron no se verán afectadas. Esta acción no se puede
-              deshacer.
+              ¿Estás seguro de que quieres cancelar todas las clases futuras
+              para el {selectedDate && formatDateForDisplay(selectedDate)}? Esta
+              acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel aria-label="Mantener las clases">
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCancelAllClasses}
-              className="bg-red-600 hover:bg-red-700"
-              aria-label={`Confirmar cancelación de todas las clases del ${
-                selectedDate && formatDateForDisplay(selectedDate)
-              }`}
-            >
-              Sí, cancelar todas
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelAllClasses}>
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog para agregar clase extra */}
+      <Dialog open={isAddingClass} onOpenChange={setIsAddingClass}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar Clase Extra</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="discipline">Disciplina</Label>
+              <Select
+                value={extraClassForm.disciplineId}
+                onValueChange={(value) =>
+                  setExtraClassForm((prev) => ({
+                    ...prev,
+                    disciplineId: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar disciplina" />
+                </SelectTrigger>
+                <SelectContent>
+                  {disciplines
+                    .filter((d) => d.isActive)
+                    .map((discipline) => (
+                      <SelectItem key={discipline.id} value={discipline.id}>
+                        {discipline.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="instructor">Instructor</Label>
+              <Select
+                value={extraClassForm.instructor}
+                onValueChange={(value) =>
+                  setExtraClassForm((prev) => ({
+                    ...prev,
+                    instructor: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar instructor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users
+                    .filter((u) => u.role === "coach" || u.role === "admin")
+                    .map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.firstName} {user.lastName}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="date">Fecha</Label>
+              <Input
+                id="date"
+                type="date"
+                value={extraClassForm.date}
+                onChange={(e) =>
+                  setExtraClassForm((prev) => ({
+                    ...prev,
+                    date: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="time">Hora</Label>
+              <Select
+                value={extraClassForm.time}
+                onValueChange={(value) =>
+                  setExtraClassForm((prev) => ({
+                    ...prev,
+                    time: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar hora" />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeOptions.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="capacity">Capacidad</Label>
+              <Input
+                id="capacity"
+                type="number"
+                min="1"
+                max="50"
+                value={extraClassForm.capacity}
+                onChange={(e) =>
+                  setExtraClassForm((prev) => ({
+                    ...prev,
+                    capacity: parseInt(e.target.value) || 15,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsAddingClass(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => handleAddExtraClass(extraClassForm)}>
+                Agregar Clase
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Drawer de detalles de clase */}
+      {selectedClass && (
+        <AdminClassDetailDrawer
+          classItem={selectedClass}
+          isOpen={showClassDetails}
+          onClose={() => {
+            setShowClassDetails(false);
+            setSelectedClass(null);
+          }}
+          onCancelClass={handleCancelClass}
+        />
+      )}
+
+      {/* Modal de inscripción de estudiantes */}
+      <Dialog
+        open={showRegistrationModal}
+        onOpenChange={setShowRegistrationModal}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Inscribir Estudiante</DialogTitle>
+          </DialogHeader>
+          {selectedClassForRegistration && (
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-semibold text-lg">
+                  {selectedClassForRegistration.name}
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {selectedClassForRegistration.instructor}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {selectedClassForRegistration.date} •{" "}
+                  {selectedClassForRegistration.time}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Inscritos: {selectedClassForRegistration.alumnRegistred}
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="student-select">Seleccionar Estudiante</Label>
+                <Select onValueChange={handleRegisterStudent}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Buscar estudiante..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users
+                      .filter(
+                        (user) =>
+                          user.role === "user" &&
+                          user.membership.status === "active"
+                      )
+                      .map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.firstName} {user.lastName} - {user.email}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowRegistrationModal(false);
+                    setSelectedClassForRegistration(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
