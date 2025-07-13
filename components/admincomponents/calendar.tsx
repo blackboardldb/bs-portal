@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -61,12 +62,13 @@ export function Calendar() {
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [showClassDetails, setShowClassDetails] = useState(false);
   const [extraClassDate, setExtraClassDate] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingClasses, setIsGeneratingClasses] = useState(false);
 
   // CONTEXTO: `classSessions` del store ahora se usará para obtener datos históricos
   // o para sobreescribir las clases generadas si ya existen en la "base de datos".
   const {
     users,
-    classSessions,
     disciplines,
     fetchClassSessions,
     fetchUsers,
@@ -141,18 +143,22 @@ export function Calendar() {
   );
 
   useEffect(() => {
+    setIsLoading(true);
     fetchClassSessions();
     fetchUsers();
     // CONTEXTO: Asegurarse de que las disciplinas están cargadas.
     if (disciplines.length === 0) {
       fetchDisciplines();
     }
+    setIsLoading(false);
   }, [fetchClassSessions, fetchUsers, fetchDisciplines, disciplines.length]);
 
   // CONTEXTO: Este efecto se encarga de (re)generar las clases cada vez que
   // el usuario cambia de mes o cuando las disciplinas (nuestra fuente de verdad) se cargan.
   useEffect(() => {
     const now = new Date();
+    setIsGeneratingClasses(true);
+
     // Si el mes que se ve es anterior al actual
     if (
       getYear(currentDate) < getYear(now) ||
@@ -162,13 +168,15 @@ export function Calendar() {
       // Cargar datos históricos desde la API
       const start = format(startOfMonth(currentDate), "yyyy-MM-dd");
       const end = format(endOfMonth(currentDate), "yyyy-MM-dd");
-      fetchClassSessions(start, end).then((data) =>
-        setMonthlyClasses(data.classes)
-      );
+      fetchClassSessions(start, end).then((data) => {
+        setMonthlyClasses(data.classes);
+        setIsGeneratingClasses(false);
+      });
     } else {
       // Generar clases para el mes actual o futuro
       if (disciplines.length > 0) {
         generateClassesForMonth(currentDate, disciplines);
+        setIsGeneratingClasses(false);
       }
     }
   }, [currentDate, disciplines, generateClassesForMonth, fetchClassSessions]);
@@ -518,39 +526,72 @@ export function Calendar() {
                   </div>
 
                   <div className="space-y-1">
-                    {dayClasses.slice(0, 3).map((cls) => (
-                      <div
-                        key={cls.id}
-                        className="text-xs p-1 rounded text-white truncate relative group"
-                        style={{ backgroundColor: cls.color }}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span>
-                            {cls.time} {cls.discipline}
-                          </span>
-                          {cls.type === "extra" && (
-                            <Badge variant="secondary" className="text-xs ml-1">
-                              Extra
-                            </Badge>
-                          )}
-                        </div>
+                    {/* Skeleton loaders mientras se cargan/generan las clases */}
+                    {(isLoading || isGeneratingClasses) &&
+                    day.isCurrentMonth ? (
+                      Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-4 w-full rounded" />
+                      ))
+                    ) : (
+                      <>
+                        {dayClasses.slice(0, 3).map((cls) => (
+                          <div
+                            key={cls.id}
+                            className="text-xs p-1 rounded text-white truncate relative group"
+                            style={{ backgroundColor: cls.color }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span>
+                                {cls.time} {cls.discipline}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {cls.type === "extra" && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    Extra
+                                  </Badge>
+                                )}
+                                {/* Indicador de clase generada vs real */}
+                                {cls.registeredParticipantsIds.length === 0 &&
+                                  !cls.notes?.includes("Clase extra") && (
+                                    <span
+                                      className="text-xs opacity-75"
+                                      title="Clase generada dinámicamente"
+                                    >
+                                      🔄
+                                    </span>
+                                  )}
+                                {cls.registeredParticipantsIds.length > 0 && (
+                                  <span
+                                    className="text-xs opacity-75"
+                                    title="Clase con actividad real"
+                                  >
+                                    ✅
+                                  </span>
+                                )}
+                              </div>
+                            </div>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancelClass(cls.id);
-                          }}
-                          className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-2 h-2 text-white" />
-                        </button>
-                      </div>
-                    ))}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCancelClass(cls.id);
+                              }}
+                              className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-2 h-2 text-white" />
+                            </button>
+                          </div>
+                        ))}
 
-                    {dayClasses.length > 3 && (
-                      <div className="text-xs text-muted-foreground">
-                        +{dayClasses.length - 3} más
-                      </div>
+                        {dayClasses.length > 3 && (
+                          <div className="text-xs text-muted-foreground">
+                            +{dayClasses.length - 3} más
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -727,6 +768,24 @@ export function Calendar() {
                         <div className="text-sm text-muted-foreground">
                           {cls.instructor && `Instructor: ${cls.instructor} | `}
                           {cls.enrolled}/{cls.capacity || "∞"} inscritos
+                          {/* Indicador de clase generada vs real */}
+                          {cls.registeredParticipantsIds.length === 0 &&
+                            !cls.notes?.includes("Clase extra") && (
+                              <span
+                                className="ml-2 text-blue-600"
+                                title="Clase generada dinámicamente"
+                              >
+                                🔄 Generada
+                              </span>
+                            )}
+                          {cls.registeredParticipantsIds.length > 0 && (
+                            <span
+                              className="ml-2 text-green-600"
+                              title="Clase con actividad real"
+                            >
+                              ✅ Con actividad
+                            </span>
+                          )}
                         </div>
 
                         {cls.notes && (
