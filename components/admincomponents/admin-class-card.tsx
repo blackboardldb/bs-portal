@@ -5,6 +5,7 @@ import { parseISO, isToday } from "date-fns";
 import { ClassStatusBadge } from "@/components/class-status-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Clock, User, Users } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,7 +45,7 @@ export default function AdminClassCard({
 
   const expired = classItem.status === "cancelled";
   const isCancelled = classItem.status === "cancelled";
-  const isFinished = false; // Se maneja dinámicamente en el componente ClassStatusBadge
+  const isFinished = classItem.status === "completed"; // Verificar si está completada
   const classDateTime = parseISO(classItem.dateTime);
   const formattedTime = formatTimeLocal(classItem.dateTime);
   const isClassToday = isToday(classDateTime);
@@ -71,62 +72,84 @@ export default function AdminClassCard({
           }
         `}
       >
-        {/* Badge de estado */}
-        <div className="absolute top-2 right-2">
-          <ClassStatusBadge
-            classItem={{
-              ...classItem,
-              status: classItem.status as
-                | "scheduled"
-                | "cancelled"
-                | "completed"
-                | "in_progress"
-                | undefined,
-            }}
-          />
-        </div>
+        {/* Badge de estado - oculto para clases finalizadas */}
+        {!isFinished && (
+          <div className="absolute top-2 right-2">
+            <ClassStatusBadge
+              classItem={{
+                ...classItem,
+                status: classItem.status as
+                  | "scheduled"
+                  | "cancelled"
+                  | "completed"
+                  | "in_progress"
+                  | undefined,
+              }}
+            />
+          </div>
+        )}
 
         {/* Layout principal con flex */}
         <div className="flex items-center gap-4">
           {/* Contenido a la izquierda */}
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">{classItem.name}</h3>
-              <span className="text-sm text-gray-500">
-                {classItem.duration}
-              </span>
+          <div className="flex-1">
+            {/* Hora como badge CSS - con estado finalizado integrado */}
+            <div
+              className={`inline-block text-xs px-2 py-1 rounded-full mb-2 ${
+                isFinished
+                  ? "bg-green-100 text-green-700"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              {formattedTime} {isFinished && "FINALIZADA"}
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">{classItem.instructor}</span>
-              <span className="text-gray-500">{classItem.alumnRegistred}</span>
-            </div>
+            {/* Título principal - disciplina */}
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">
+              {classItem.name}
+            </h3>
 
-            {/* Fecha y hora */}
-            <div className="text-sm text-gray-600">
-              <div className="font-medium">
-                {formatWeekday(classItem.dateTime)}{" "}
-                {formatDayMonth(classItem.dateTime)}
+            {/* Información con iconos */}
+            <div className="flex items-center gap-4 text-sm text-gray-600">
+              {/* Instructor - solo si tiene valor */}
+              {classItem.instructor &&
+                classItem.instructor !== "Por asignar" && (
+                  <div className="flex items-center gap-1">
+                    <User className="w-4 h-4" />
+                    <span>{classItem.instructor}</span>
+                  </div>
+                )}
+
+              {/* Duración */}
+              <div className="flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                <span>{classItem.duration}</span>
               </div>
-              <div className="text-gray-500">a las {formattedTime}</div>
+
+              {/* Capacidad */}
+              <div className="flex items-center gap-1">
+                <Users className="w-4 h-4" />
+                <span>{classItem.alumnRegistred}</span>
+              </div>
             </div>
 
             {/* Indicador de clase de hoy */}
             {isClassToday && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs mt-2">
                 Hoy
               </Badge>
             )}
           </div>
 
           {/* Botones a la derecha */}
-          <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => onViewClass(classItem)}
+              className="opacity-100" // Mantener opacidad 100% siempre
             >
-              Ver Detalles
+              Ver Clase
             </Button>
             {!isCancelled && !isFinished && !isPastClass && (
               <Button
