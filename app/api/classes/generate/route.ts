@@ -7,18 +7,23 @@ function createLocalDateTime(
   hours: number,
   minutes: number
 ): string {
-  const localDate = new Date(date);
-  localDate.setHours(hours, minutes, 0, 0);
+  // Crear la fecha usando los componentes individuales para evitar problemas de zona horaria
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+
+  // Crear una nueva fecha con la hora específica
+  const localDate = new Date(year, month, day, hours, minutes, 0, 0);
 
   // Format as YYYY-MM-DDTHH:mm:ss without timezone info
-  const year = localDate.getFullYear();
-  const month = String(localDate.getMonth() + 1).padStart(2, "0");
-  const day = String(localDate.getDate()).padStart(2, "0");
-  const hour = String(localDate.getHours()).padStart(2, "0");
-  const minute = String(localDate.getMinutes()).padStart(2, "0");
-  const second = String(localDate.getSeconds()).padStart(2, "0");
+  const formattedYear = localDate.getFullYear();
+  const formattedMonth = String(localDate.getMonth() + 1).padStart(2, "0");
+  const formattedDay = String(localDate.getDate()).padStart(2, "0");
+  const formattedHour = String(localDate.getHours()).padStart(2, "0");
+  const formattedMinute = String(localDate.getMinutes()).padStart(2, "0");
+  const formattedSecond = String(localDate.getSeconds()).padStart(2, "0");
 
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  return `${formattedYear}-${formattedMonth}-${formattedDay}T${formattedHour}:${formattedMinute}:${formattedSecond}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -30,10 +35,23 @@ export async function POST(request: NextRequest) {
       instructorId,
       time,
       maxCapacity = 20,
+      notes = "Clase generada",
     } = await request.json();
+
+    console.log("=== API: Generando clases ===");
+    console.log("Datos recibidos:", {
+      startDate,
+      endDate,
+      disciplineId,
+      instructorId,
+      time,
+      maxCapacity,
+      notes,
+    });
 
     // Validate required fields
     if (!startDate || !endDate || !disciplineId || !instructorId || !time) {
+      console.error("❌ Campos requeridos faltantes");
       return NextResponse.json(
         {
           error:
@@ -56,14 +74,33 @@ export async function POST(request: NextRequest) {
       date <= end;
       date.setDate(date.getDate() + 1)
     ) {
-      // Skip weekends (Saturday = 6, Sunday = 0)
+      // Skip weekends only for regular classes, not for extra classes
       const dayOfWeek = date.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isExtraClass = notes.includes("Clase extra");
+
+      if (isWeekend && !isExtraClass) {
+        console.log(
+          `⏭️ Saltando fin de semana: ${
+            date.toISOString().split("T")[0]
+          } (día ${dayOfWeek})`
+        );
         continue;
       }
 
+      console.log(
+        `✅ Generando clase para: ${
+          date.toISOString().split("T")[0]
+        } (día ${dayOfWeek}) - Extra: ${isExtraClass}`
+      );
+
       // Create class for this day with correct local time
       const classDateTime = createLocalDateTime(date, hours, minutes);
+      console.log(
+        `📅 Fecha creada: ${classDateTime} (original: ${
+          date.toISOString().split("T")[0]
+        })`
+      );
 
       // Format date for ID (YYYY-MM-DD)
       const dateStr = date.toISOString().split("T")[0];
@@ -82,11 +119,15 @@ export async function POST(request: NextRequest) {
           registeredParticipantsIds: [],
           waitlistParticipantsIds: [],
           status: "scheduled",
+          notes,
         },
       });
 
       generatedClasses.push(newClass);
     }
+
+    console.log("✅ Clases generadas:", generatedClasses.length);
+    console.log("Primera clase:", generatedClasses[0]);
 
     return NextResponse.json(
       {

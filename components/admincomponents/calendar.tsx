@@ -52,6 +52,46 @@ import {
   parseISO,
 } from "date-fns";
 
+// Tipos específicos para el calendario
+type TransformedClass = {
+  id: string;
+  dateTime: string;
+  name: string;
+  instructor: string;
+  duration: string;
+  alumnRegistred: string;
+  isRegistered: boolean; // Agregado para compatibilidad con AdminClassDetailDrawer
+  status: string;
+  discipline: string;
+  disciplineId: string;
+  date: string;
+  time: string;
+  color: string;
+  capacity: number;
+  enrolled: number;
+  type: "extra" | "regular";
+  cancelled: boolean;
+  registeredParticipantsIds: string[];
+  waitlistParticipantsIds?: string[]; // Agregado para compatibilidad
+  isGenerated: boolean;
+  isExtra: boolean;
+  historicalData: {
+    averageAttendance: number;
+    noShowRate: number;
+    waitlistFrequency: number;
+    popularityTrend: "up" | "down" | "stable";
+  };
+  notes: string;
+};
+
+type ExtraClassFormData = {
+  disciplineId: string;
+  instructor: string;
+  date: string;
+  time: string;
+  capacity: number;
+};
+
 export function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   // CONTEXTO: Este estado local contendrá las clases generadas para el mes visible.
@@ -60,11 +100,21 @@ export function Calendar() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isAddingClass, setIsAddingClass] = useState(false);
   const [showCancelAllDialog, setShowCancelAllDialog] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<any>(null);
+  const [selectedClass, setSelectedClass] = useState<TransformedClass | null>(
+    null
+  );
   const [showClassDetails, setShowClassDetails] = useState(false);
-  const [extraClassDate, setExtraClassDate] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingClasses, setIsGeneratingClasses] = useState(false);
+
+  // Estados para el formulario de clase extra
+  const [extraClassForm, setExtraClassForm] = useState<ExtraClassFormData>({
+    disciplineId: "",
+    instructor: "",
+    date: "",
+    time: "",
+    capacity: 15,
+  });
 
   // CONTEXTO: `classSessions` del store ahora se usará para obtener datos históricos
   // o para sobreescribir las clases generadas si ya existen en la "base de datos".
@@ -258,9 +308,14 @@ export function Calendar() {
   // en lugar de las clases globales del store. Esto hace que el calendario sea dinámico.
   const transformedClasses = useMemo(
     () =>
-      monthlyClasses.map((cls: any) => {
+      monthlyClasses.map((cls: ClassSession): TransformedClass => {
         const discipline = disciplines.find((d) => d.id === cls.disciplineId);
         const instructor = users.find((u) => u.id === cls.instructorId);
+
+        // Determinar si es clase generada o extra
+        const isGenerated = cls.id.startsWith("gen_");
+        const isExtra = cls.notes?.includes("Clase extra") || false;
+
         return {
           id: cls.id,
           dateTime: cls.dateTime,
@@ -272,6 +327,7 @@ export function Calendar() {
           alumnRegistred: `${cls.registeredParticipantsIds.length}/${
             cls.capacity || 15
           }`,
+          isRegistered: cls.registeredParticipantsIds.length > 0, // Agregado para compatibilidad
           status: cls.status,
           discipline: discipline?.name || cls.name,
           disciplineId: cls.disciplineId,
@@ -280,10 +336,14 @@ export function Calendar() {
           color: discipline?.color || "#666",
           capacity: cls.capacity,
           enrolled: cls.registeredParticipantsIds.length,
-          type: cls.notes?.includes("Clase extra") ? "extra" : "regular",
+          type: isExtra ? "extra" : "regular",
           cancelled: cls.status === "cancelled",
           registeredParticipantsIds: cls.registeredParticipantsIds,
+          waitlistParticipantsIds: cls.waitlistParticipantsIds, // Agregado para compatibilidad
+          isGenerated,
+          isExtra,
           historicalData: {
+            // TODO: Reemplazar con datos reales de la API cuando esté disponible
             averageAttendance: Math.floor(Math.random() * 10) + 5,
             noShowRate: Math.random() * 0.3,
             waitlistFrequency: Math.random() * 0.2,
@@ -358,27 +418,81 @@ export function Calendar() {
     });
   };
 
-  const handleAddExtraClass = async (classData: any) => {
+  // Navegación por teclado
+  // Permite usar las flechas izquierda/derecha para navegar entre meses
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      navigateMonth("prev");
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      navigateMonth("next");
+    }
+  };
+
+  const handleAddExtraClass = async (classData: ExtraClassFormData) => {
+    console.log("=== INICIO: handleAddExtraClass ===");
+    console.log("Datos del formulario:", classData);
+
     const discipline = disciplines.find((d) => d.id === classData.disciplineId);
-    if (!discipline) return;
+    console.log("Disciplina encontrada:", discipline);
+
+    if (!discipline) {
+      console.error("❌ No se encontró la disciplina");
+      toast({
+        title: "Error al Agregar Clase Extra",
+        description: "Disciplina no encontrada.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      const payload = {
+        startDate: classData.date,
+        endDate: classData.date,
+        disciplineId: classData.disciplineId,
+        instructorId: "inst_default",
+        time: classData.time,
+        maxCapacity: classData.capacity || 15,
+        notes: "Clase extra", // Marcar como clase extra
+      };
+
+      console.log("Payload a enviar:", payload);
+
       const response = await fetch("/api/classes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startDate: classData.date,
-          endDate: classData.date,
-          disciplineId: classData.disciplineId,
-          instructorId: "inst_default",
-          time: classData.time,
-          maxCapacity: classData.capacity || 15,
-        }),
+        body: JSON.stringify(payload),
       });
+
+      console.log(
+        "Respuesta del servidor:",
+        response.status,
+        response.statusText
+      );
+
       if (response.ok) {
+        const responseData = await response.json();
+        console.log("Datos de respuesta:", responseData);
+
+        // Agregar la nueva clase al estado local inmediatamente
+        if (responseData.classes && responseData.classes.length > 0) {
+          const newClass = responseData.classes[0]; // Tomamos la primera clase creada
+          setMonthlyClasses((prev) => [...prev, newClass]);
+          console.log("✅ Clase agregada al estado local:", newClass);
+        }
+
         await fetchClassSessions();
         setIsAddingClass(false);
-        setExtraClassDate("");
+        // Resetear el formulario
+        setExtraClassForm({
+          disciplineId: "",
+          instructor: "",
+          date: "",
+          time: "",
+          capacity: 15,
+        });
         toast({
           title: "Clase Extra Agregada",
           description: `Clase extra para ${
@@ -387,8 +501,10 @@ export function Calendar() {
             classData.time
           } agregada.`,
         });
+        console.log("✅ Clase extra agregada exitosamente");
       } else {
         const error = await response.json();
+        console.error("❌ Error del servidor:", error);
         toast({
           title: "Error al Agregar Clase Extra",
           description: error.message || "Error al agregar la clase extra.",
@@ -396,6 +512,7 @@ export function Calendar() {
         });
       }
     } catch (error) {
+      console.error("❌ Error inesperado:", error);
       toast({
         title: "Error al Agregar Clase Extra",
         description: "Error inesperado al agregar la clase extra.",
@@ -406,8 +523,12 @@ export function Calendar() {
 
   const handleCancelClass = async (classId: string) => {
     try {
+      // Buscar la clase en el estado local para verificar si es generada
+      const classToCancel = monthlyClasses.find((cls) => cls.id === classId);
+      const isGenerated = classToCancel?.id.startsWith("gen_") || false;
+
       // Si es una clase generada dinámicamente, solo actualizar el estado local
-      if (classId.startsWith("gen_")) {
+      if (isGenerated) {
         setMonthlyClasses((prev) =>
           prev.map((cls) =>
             cls.id === classId ? { ...cls, status: "cancelled" } : cls
@@ -507,7 +628,7 @@ export function Calendar() {
     }
   };
 
-  const handleViewClassDetails = (cls: any) => {
+  const handleViewClassDetails = (cls: TransformedClass) => {
     // CONTEXTO: Ahora recibimos una clase ya transformada, no necesitamos transformarla de nuevo
     setSelectedClass(cls);
     setShowClassDetails(true);
@@ -521,15 +642,23 @@ export function Calendar() {
   }, [selectedDate, transformedClasses]);
 
   return (
-    <div className="space-y-6">
+    // Contenedor principal con navegación por teclado y focus management
+    <div className="space-y-6" onKeyDown={handleKeyDown} tabIndex={0}>
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Calendario de Clases</h2>
         <div className="flex items-center gap-4">
           <Button
             onClick={() => {
-              setExtraClassDate(getDateString(new Date()));
+              setExtraClassForm({
+                disciplineId: "",
+                instructor: "",
+                date: getDateString(new Date()),
+                time: "",
+                capacity: 15,
+              });
               setIsAddingClass(true);
             }}
+            aria-label="Agregar clase extra para hoy"
           >
             <Plus className="w-4 h-4 mr-2" />
             Agregar Clase Extra
@@ -539,6 +668,7 @@ export function Calendar() {
               variant="outline"
               size="sm"
               onClick={() => navigateMonth("prev")}
+              aria-label="Mes anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -549,6 +679,7 @@ export function Calendar() {
               variant="outline"
               size="sm"
               onClick={() => navigateMonth("next")}
+              aria-label="Mes siguiente"
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -577,10 +708,21 @@ export function Calendar() {
               return (
                 <div
                   key={index}
-                  className={`min-h-[120px] p-2 border rounded-lg cursor-pointer hover:bg-gray-50 ${
+                  className={`min-h-[120px] p-2 border rounded-lg text-left hover:bg-gray-50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1 cursor-pointer ${
                     !day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""
                   } ${isToday ? "bg-blue-50 border-blue-200" : ""}`}
                   onClick={() => setSelectedDate(day.dateString)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedDate(day.dateString);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Ver clases para ${formatDateForDisplay(
+                    day.dateString
+                  )}`}
                 >
                   <div className="font-medium text-sm mb-1">
                     {day.date.getDate()}
@@ -606,7 +748,7 @@ export function Calendar() {
                                 {cls.time} {cls.discipline}
                               </span>
                               <div className="flex items-center gap-1">
-                                {cls.type === "extra" && (
+                                {cls.isExtra && (
                                   <Badge
                                     variant="secondary"
                                     className="text-xs"
@@ -615,23 +757,23 @@ export function Calendar() {
                                   </Badge>
                                 )}
                                 {/* Indicador de clase generada vs real */}
-                                {cls.registeredParticipantsIds.length === 0 &&
-                                  !cls.notes?.includes("Clase extra") && (
-                                    <span
-                                      className="text-xs opacity-75"
-                                      title="Clase generada dinámicamente"
-                                    >
-                                      🔄
-                                    </span>
-                                  )}
-                                {cls.registeredParticipantsIds.length > 0 && (
+                                {cls.isGenerated && !cls.isExtra && (
                                   <span
                                     className="text-xs opacity-75"
-                                    title="Clase con actividad real"
+                                    title="Clase generada dinámicamente"
                                   >
-                                    ✅
+                                    🔄
                                   </span>
                                 )}
+                                {!cls.isGenerated &&
+                                  cls.registeredParticipantsIds.length > 0 && (
+                                    <span
+                                      className="text-xs opacity-75"
+                                      title="Clase con actividad real"
+                                    >
+                                      ✅
+                                    </span>
+                                  )}
                               </div>
                             </div>
 
@@ -641,6 +783,7 @@ export function Calendar() {
                                 handleCancelClass(cls.id);
                               }}
                               className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label={`Cancelar clase ${cls.discipline}`}
                             >
                               <X className="w-2 h-2 text-white" />
                             </button>
@@ -671,24 +814,62 @@ export function Calendar() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const classData = {
-                  disciplineId: formData.get("disciplineId") as string,
-                  instructor: formData.get("instructor") as string,
-                  date: formData.get("date") as string,
-                  time: formData.get("time") as string,
-                  capacity: formData.get("capacity")
-                    ? parseInt(formData.get("capacity") as string)
-                    : 15,
-                };
-                handleAddExtraClass(classData);
+                console.log("=== FORMULARIO ENVIADO ===");
+                console.log("Estado del formulario:", extraClassForm);
+                console.log("Disciplinas disponibles:", disciplines);
+
+                // Validación explícita
+                if (!extraClassForm.disciplineId) {
+                  console.error("❌ Falta disciplina");
+                  toast({
+                    title: "Error de Validación",
+                    description: "Por favor selecciona una disciplina.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                if (!extraClassForm.date) {
+                  console.error("❌ Falta fecha");
+                  toast({
+                    title: "Error de Validación",
+                    description: "Por favor selecciona una fecha.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                if (!extraClassForm.time) {
+                  console.error("❌ Falta hora");
+                  toast({
+                    title: "Error de Validación",
+                    description: "Por favor selecciona una hora.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                console.log("✅ Validación pasada, enviando datos...");
+                handleAddExtraClass(extraClassForm);
               }}
               className="space-y-4"
             >
               <div>
-                <Label htmlFor="discipline">Disciplina *</Label>
-                <Select name="disciplineId" required>
-                  <SelectTrigger>
+                <Label htmlFor="discipline-select">Disciplina *</Label>
+                <Select
+                  value={extraClassForm.disciplineId}
+                  onValueChange={(value) =>
+                    setExtraClassForm((prev) => ({
+                      ...prev,
+                      disciplineId: value,
+                    }))
+                  }
+                  required
+                >
+                  <SelectTrigger
+                    id="discipline-select"
+                    aria-describedby="discipline-help"
+                  >
                     <SelectValue placeholder="Seleccionar disciplina" />
                   </SelectTrigger>
                   <SelectContent>
@@ -699,28 +880,61 @@ export function Calendar() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p
+                  id="discipline-help"
+                  className="text-xs text-muted-foreground mt-1"
+                >
+                  Selecciona la disciplina para la clase extra
+                </p>
               </div>
 
               <div>
-                <Label htmlFor="instructor">Instructor (opcional)</Label>
-                <Input name="instructor" placeholder="Nombre del instructor" />
+                <Label htmlFor="instructor-input">Instructor (opcional)</Label>
+                <Input
+                  id="instructor-input"
+                  name="instructor"
+                  placeholder="Nombre del instructor"
+                  value={extraClassForm.instructor}
+                  onChange={(e) =>
+                    setExtraClassForm((prev) => ({
+                      ...prev,
+                      instructor: e.target.value,
+                    }))
+                  }
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="date">Fecha *</Label>
+                  <Label htmlFor="date-input">Fecha *</Label>
                   <Input
+                    id="date-input"
                     name="date"
                     type="date"
                     required
-                    defaultValue={extraClassDate}
+                    value={extraClassForm.date}
+                    onChange={(e) =>
+                      setExtraClassForm((prev) => ({
+                        ...prev,
+                        date: e.target.value,
+                      }))
+                    }
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="time">Hora *</Label>
-                  <Select name="time" required>
-                    <SelectTrigger>
+                  <Label htmlFor="time-select">Hora *</Label>
+                  <Select
+                    value={extraClassForm.time}
+                    onValueChange={(value) =>
+                      setExtraClassForm((prev) => ({ ...prev, time: value }))
+                    }
+                    required
+                  >
+                    <SelectTrigger
+                      id="time-select"
+                      aria-describedby="time-help"
+                    >
                       <SelectValue placeholder="Seleccionar hora" />
                     </SelectTrigger>
                     <SelectContent>
@@ -731,16 +945,30 @@ export function Calendar() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p
+                    id="time-help"
+                    className="text-xs text-muted-foreground mt-1"
+                  >
+                    Selecciona la hora para la clase extra
+                  </p>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="capacity">Capacidad (opcional)</Label>
+                <Label htmlFor="capacity-input">Capacidad (opcional)</Label>
                 <Input
+                  id="capacity-input"
                   name="capacity"
                   type="number"
                   placeholder="Máximo de alumnos"
                   min="1"
+                  value={extraClassForm.capacity}
+                  onChange={(e) =>
+                    setExtraClassForm((prev) => ({
+                      ...prev,
+                      capacity: parseInt(e.target.value) || 15,
+                    }))
+                  }
                 />
               </div>
 
@@ -750,7 +978,14 @@ export function Calendar() {
                   variant="outline"
                   onClick={() => {
                     setIsAddingClass(false);
-                    setExtraClassDate("");
+                    // Resetear el formulario
+                    setExtraClassForm({
+                      disciplineId: "",
+                      instructor: "",
+                      date: "",
+                      time: "",
+                      capacity: 15,
+                    });
                   }}
                 >
                   Cancelar
@@ -784,6 +1019,9 @@ export function Calendar() {
                       size="sm"
                       onClick={() => setShowCancelAllDialog(true)}
                       className="text-red-600 hover:text-red-700"
+                      aria-label={`Cancelar todas las clases del ${formatDateForDisplay(
+                        selectedDate
+                      )}`}
                     >
                       <AlertTriangle className="w-4 h-4 mr-2" />
                       Cancelar Todas
@@ -792,9 +1030,18 @@ export function Calendar() {
                   <Button
                     size="sm"
                     onClick={() => {
-                      setExtraClassDate(selectedDate);
+                      setExtraClassForm({
+                        disciplineId: "",
+                        instructor: "",
+                        date: selectedDate,
+                        time: "",
+                        capacity: 15,
+                      });
                       setIsAddingClass(true);
                     }}
+                    aria-label={`Agregar clase extra para el ${formatDateForDisplay(
+                      selectedDate
+                    )}`}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Clase Extra
@@ -821,23 +1068,31 @@ export function Calendar() {
                           {cls.instructor && `Instructor: ${cls.instructor} | `}
                           {cls.enrolled}/{cls.capacity || "∞"} inscritos
                           {/* Indicador de clase generada vs real */}
-                          {cls.registeredParticipantsIds.length === 0 &&
-                            !cls.notes?.includes("Clase extra") && (
-                              <span
-                                className="ml-2 text-blue-600"
-                                title="Clase generada dinámicamente"
-                              >
-                                🔄 Generada
-                              </span>
-                            )}
-                          {cls.registeredParticipantsIds.length > 0 && (
+                          {cls.isGenerated && !cls.isExtra && (
                             <span
-                              className="ml-2 text-green-600"
-                              title="Clase con actividad real"
+                              className="ml-2 text-blue-600"
+                              title="Clase generada dinámicamente"
                             >
-                              ✅ Con actividad
+                              🔄 Generada
                             </span>
                           )}
+                          {cls.isExtra && (
+                            <span
+                              className="ml-2 text-orange-600"
+                              title="Clase extra"
+                            >
+                              ⭐ Extra
+                            </span>
+                          )}
+                          {!cls.isGenerated &&
+                            cls.registeredParticipantsIds.length > 0 && (
+                              <span
+                                className="ml-2 text-green-600"
+                                title="Clase con actividad real"
+                              >
+                                ✅ Con actividad
+                              </span>
+                            )}
                         </div>
 
                         {cls.notes && (
@@ -856,6 +1111,7 @@ export function Calendar() {
                         size="sm"
                         onClick={() => handleCancelClass(cls.id)}
                         className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                        aria-label={`Cancelar clase ${cls.discipline} del ${cls.time}`}
                       >
                         Cancelar
                       </Button>
@@ -864,6 +1120,7 @@ export function Calendar() {
                         size="sm"
                         className="text-xs"
                         onClick={() => handleViewClassDetails(cls)}
+                        aria-label={`Ver detalles de la clase ${cls.discipline} del ${cls.time}`}
                       >
                         Ver detalles
                       </Button>
@@ -907,10 +1164,15 @@ export function Calendar() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel aria-label="Mantener las clases">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleCancelAllClasses}
               className="bg-red-600 hover:bg-red-700"
+              aria-label={`Confirmar cancelación de todas las clases del ${
+                selectedDate && formatDateForDisplay(selectedDate)
+              }`}
             >
               Sí, cancelar todas
             </AlertDialogAction>
