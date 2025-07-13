@@ -706,8 +706,8 @@ export function Calendar() {
           open={!!selectedDate}
           onOpenChange={() => setSelectedDate(null)}
         >
-          <DialogContent className="max-w-2xl max-h-[70vh] flex flex-col">
-            <DialogHeader>
+          <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>
                 Clases del{" "}
                 {new Date(selectedDate + "T00:00:00").toLocaleDateString(
@@ -722,8 +722,8 @@ export function Calendar() {
               </DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4 flex-1">
-              <div className="flex justify-between items-center">
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
                 <h4 className="font-medium">Clases programadas</h4>
                 <div className="flex gap-2">
                   {classesForSelectedDate.length > 0 && (
@@ -750,7 +750,7 @@ export function Calendar() {
                 </div>
               </div>
 
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
                 {classesForSelectedDate.map((cls) => (
                   <div
                     key={cls.id}
