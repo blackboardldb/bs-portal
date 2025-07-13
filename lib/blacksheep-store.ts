@@ -191,6 +191,10 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         limit: number = 10
       ) => {
         try {
+          // NOTA: Esta función ahora se usa principalmente para cargar clases históricas
+          // con actividad real (inscripciones, cancelaciones, etc.).
+          // Las clases del calendario admin se generan dinámicamente en el frontend.
+
           // Construir URL con parámetros de filtrado y paginación
           const params = new URLSearchParams();
           if (startDate) params.append("startDate", startDate);

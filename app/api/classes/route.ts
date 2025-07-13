@@ -12,7 +12,9 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
 
-    // Filtrar clases por fecha si se proporcionan parámetros
+    // NOTA: initialClasses ahora está vacío. Las clases se generan dinámicamente
+    // en el frontend basándose en los horarios de las disciplinas.
+    // Esta API se usa principalmente para clases históricas con actividad real.
     let filteredClasses = initialClasses;
 
     if (startDate || endDate) {
