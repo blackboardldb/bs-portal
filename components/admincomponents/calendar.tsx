@@ -49,6 +49,7 @@ import {
   eachDayOfInterval,
   format,
   getDay,
+  parseISO,
 } from "date-fns";
 
 export function Calendar() {
@@ -233,6 +234,26 @@ export function Calendar() {
     "21:30",
   ];
 
+  // Función helper para formatear fechas sin problemas de zona horaria
+  const formatDateForDisplay = (dateString: string) => {
+    const [year, month, day] = dateString.split("-").map(Number);
+    const date = new Date(year, month - 1, day); // month - 1 porque los meses van de 0-11
+    return date.toLocaleDateString("es-ES", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  // Función helper para obtener fecha en formato YYYY-MM-DD sin zona horaria
+  const getDateString = (date: Date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
   // CONTEXTO: Este `useMemo` ahora transforma las clases generadas localmente (`monthlyClasses`)
   // en lugar de las clases globales del store. Esto hace que el calendario sea dinámico.
   const transformedClasses = useMemo(
@@ -254,8 +275,8 @@ export function Calendar() {
           status: cls.status,
           discipline: discipline?.name || cls.name,
           disciplineId: cls.disciplineId,
-          date: cls.dateTime.split("T")[0],
-          time: cls.dateTime.split("T")[1].substring(0, 5),
+          date: format(parseISO(cls.dateTime), "yyyy-MM-dd"),
+          time: format(parseISO(cls.dateTime), "HH:mm"),
           color: discipline?.color || "#666",
           capacity: cls.capacity,
           enrolled: cls.registeredParticipantsIds.length,
@@ -291,7 +312,7 @@ export function Calendar() {
       days.push({
         date: prevDate,
         isCurrentMonth: false,
-        dateString: prevDate.toISOString().split("T")[0],
+        dateString: getDateString(prevDate),
       });
     }
 
@@ -300,7 +321,7 @@ export function Calendar() {
       days.push({
         date,
         isCurrentMonth: true,
-        dateString: date.toISOString().split("T")[0],
+        dateString: getDateString(date),
       });
     }
 
@@ -310,7 +331,7 @@ export function Calendar() {
       days.push({
         date: nextDate,
         isCurrentMonth: false,
-        dateString: nextDate.toISOString().split("T")[0],
+        dateString: getDateString(nextDate),
       });
     }
 
@@ -360,9 +381,11 @@ export function Calendar() {
         setExtraClassDate("");
         toast({
           title: "Clase Extra Agregada",
-          description: `Clase extra para ${discipline.name} el ${new Date(
-            classData.date
-          ).toLocaleDateString()} a las ${classData.time} agregada.`,
+          description: `Clase extra para ${
+            discipline.name
+          } el ${formatDateForDisplay(classData.date)} a las ${
+            classData.time
+          } agregada.`,
         });
       } else {
         const error = await response.json();
@@ -447,9 +470,8 @@ export function Calendar() {
           // Actualizar el estado local inmediatamente
           setMonthlyClasses((prev) =>
             prev.map((cls) => {
-              const classDate = new Date(cls.dateTime)
-                .toISOString()
-                .split("T")[0];
+              const classDateTime = new Date(cls.dateTime);
+              const classDate = getDateString(classDateTime);
               return classDate === selectedDate
                 ? { ...cls, status: "cancelled" }
                 : cls;
@@ -463,9 +485,9 @@ export function Calendar() {
 
           toast({
             title: "Todas las Clases Canceladas",
-            description: `Todas las clases programadas para el ${new Date(
-              selectedDate + "T00:00:00"
-            ).toLocaleDateString()} han sido canceladas.`,
+            description: `Todas las clases programadas para el ${formatDateForDisplay(
+              selectedDate
+            )} han sido canceladas.`,
           });
         } else {
           const error = await response.json();
@@ -505,7 +527,7 @@ export function Calendar() {
         <div className="flex items-center gap-4">
           <Button
             onClick={() => {
-              setExtraClassDate(new Date().toISOString().split("T")[0]);
+              setExtraClassDate(getDateString(new Date()));
               setIsAddingClass(true);
             }}
           >
@@ -550,8 +572,7 @@ export function Calendar() {
           <div className="grid grid-cols-7 gap-2">
             {days.map((day, index) => {
               const dayClasses = getClassesForDate(day.dateString);
-              const isToday =
-                day.dateString === new Date().toISOString().split("T")[0];
+              const isToday = day.dateString === getDateString(new Date());
 
               return (
                 <div
@@ -749,16 +770,7 @@ export function Calendar() {
           <DialogContent className="max-w-2xl h-[80vh] flex flex-col">
             <DialogHeader className="flex-shrink-0">
               <DialogTitle>
-                Clases del{" "}
-                {new Date(selectedDate + "T00:00:00").toLocaleDateString(
-                  "es-ES",
-                  {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  }
-                )}
+                Clases del {formatDateForDisplay(selectedDate)}
               </DialogTitle>
             </DialogHeader>
 
@@ -890,16 +902,8 @@ export function Calendar() {
             <AlertDialogTitle>¿Cancelar todas las clases?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción cancelará todas las clases programadas para el{" "}
-              {selectedDate &&
-                new Date(selectedDate + "T00:00:00").toLocaleDateString(
-                  "es-ES",
-                  {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                  }
-                )}
-              . Esta acción no se puede deshacer.
+              {selectedDate && formatDateForDisplay(selectedDate)}. Esta acción
+              no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
