@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
-import { ClassSession } from "@/lib/types";
+import { ClassSession, DayOfWeek } from "@/lib/types";
 import AdminClassDetailDrawer from "./admin-class-detail-drawer";
 import {
   Plus,
@@ -40,9 +40,21 @@ import {
   X,
   AlertTriangle,
 } from "lucide-react";
+import {
+  getMonth,
+  getYear,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  format,
+  getDay,
+} from "date-fns";
 
 export function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  // CONTEXTO: Este estado local contendrá las clases generadas para el mes visible.
+  // Es más eficiente que usar el store global para esto.
+  const [monthlyClasses, setMonthlyClasses] = useState<ClassSession[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isAddingClass, setIsAddingClass] = useState(false);
   const [showCancelAllDialog, setShowCancelAllDialog] = useState(false);
@@ -50,15 +62,116 @@ export function Calendar() {
   const [showClassDetails, setShowClassDetails] = useState(false);
   const [extraClassDate, setExtraClassDate] = useState<string>("");
 
-  const { users, classSessions, disciplines, fetchClassSessions, fetchUsers } =
-    useBlackSheepStore();
+  // CONTEXTO: `classSessions` del store ahora se usará para obtener datos históricos
+  // o para sobreescribir las clases generadas si ya existen en la "base de datos".
+  const {
+    users,
+    classSessions,
+    disciplines,
+    fetchClassSessions,
+    fetchUsers,
+    fetchDisciplines,
+  } = useBlackSheepStore();
 
   const { toast } = useToast();
+
+  // CONTEXTO: Esta es la función clave. Genera las clases para un mes basándose en los
+  // horarios de las disciplinas. Es rápida porque opera sobre datos en memoria.
+  const generateClassesForMonth = useCallback(
+    (date: Date, disciplines: any[]) => {
+      const start = startOfMonth(date);
+      const end = endOfMonth(date);
+      const daysInMonth = eachDayOfInterval({ start, end });
+      const dayMapping: DayOfWeek[] = [
+        "dom",
+        "lun",
+        "mar",
+        "mie",
+        "jue",
+        "vie",
+        "sab",
+      ];
+
+      const generatedClasses: ClassSession[] = [];
+
+      daysInMonth.forEach((day) => {
+        const dayOfWeek = dayMapping[getDay(day)];
+
+        disciplines.forEach((discipline) => {
+          const scheduleForDay = discipline.schedule?.find(
+            (s: any) => s.day === dayOfWeek
+          );
+          if (scheduleForDay) {
+            scheduleForDay.times.forEach((time: string) => {
+              const [hour, minute] = time.split(":");
+              const classDateTime = new Date(day);
+              classDateTime.setHours(
+                parseInt(hour, 10),
+                parseInt(minute, 10),
+                0,
+                0
+              );
+
+              generatedClasses.push({
+                id: `gen_${discipline.id}_${format(
+                  classDateTime,
+                  "yyyy-MM-dd_HH-mm"
+                )}`,
+                organizationId: "org_blacksheep_001",
+                disciplineId: discipline.id,
+                name: discipline.name,
+                dateTime: classDateTime.toISOString(),
+                durationMinutes: 60, // Se puede hacer configurable en la disciplina
+                instructorId: "inst_default", // Lógica de asignación puede ir aquí
+                capacity: 15, // Se puede hacer configurable
+                registeredParticipantsIds: [],
+                waitlistParticipantsIds: [],
+                status: "scheduled",
+                notes:
+                  "Clase generada dinámicamente desde horarios de disciplina",
+              });
+            });
+          }
+        });
+      });
+
+      setMonthlyClasses(generatedClasses);
+    },
+    []
+  );
 
   useEffect(() => {
     fetchClassSessions();
     fetchUsers();
-  }, [fetchClassSessions, fetchUsers]);
+    // CONTEXTO: Asegurarse de que las disciplinas están cargadas.
+    if (disciplines.length === 0) {
+      fetchDisciplines();
+    }
+  }, [fetchClassSessions, fetchUsers, fetchDisciplines, disciplines.length]);
+
+  // CONTEXTO: Este efecto se encarga de (re)generar las clases cada vez que
+  // el usuario cambia de mes o cuando las disciplinas (nuestra fuente de verdad) se cargan.
+  useEffect(() => {
+    const now = new Date();
+    // Si el mes que se ve es anterior al actual
+    if (
+      getYear(currentDate) < getYear(now) ||
+      (getYear(currentDate) === getYear(now) &&
+        getMonth(currentDate) < getMonth(now))
+    ) {
+      // Cargar datos históricos desde la API
+      const start = format(startOfMonth(currentDate), "yyyy-MM-dd");
+      const end = format(endOfMonth(currentDate), "yyyy-MM-dd");
+      fetchClassSessions(start, end).then((data) =>
+        setMonthlyClasses(data.classes)
+      );
+    } else {
+      // Generar clases para el mes actual o futuro
+      if (disciplines.length > 0) {
+        generateClassesForMonth(currentDate, disciplines);
+      }
+    }
+  }, [currentDate, disciplines, generateClassesForMonth, fetchClassSessions]);
 
   const monthNames = [
     "Enero",
@@ -112,9 +225,11 @@ export function Calendar() {
     "21:30",
   ];
 
+  // CONTEXTO: Este `useMemo` ahora transforma las clases generadas localmente (`monthlyClasses`)
+  // en lugar de las clases globales del store. Esto hace que el calendario sea dinámico.
   const transformedClasses = useMemo(
     () =>
-      classSessions.map((cls: any) => {
+      monthlyClasses.map((cls: any) => {
         const discipline = disciplines.find((d) => d.id === cls.disciplineId);
         const instructor = users.find((u) => u.id === cls.instructorId);
         return {
@@ -150,7 +265,7 @@ export function Calendar() {
           notes: cls.notes || "",
         };
       }),
-    [classSessions, disciplines, users]
+    [monthlyClasses, disciplines, users]
   );
 
   const getDaysInMonth = (date: Date) => {
@@ -322,43 +437,9 @@ export function Calendar() {
     }
   };
 
-  const handleViewClassDetails = (cls: ClassSession) => {
-    const discipline = disciplines.find((d) => d.id === cls.disciplineId);
-    const instructor = users.find((u) => u.id === cls.instructorId);
-    const transformedClass = {
-      id: cls.id,
-      dateTime: cls.dateTime,
-      name: discipline?.name || cls.name,
-      instructor: instructor
-        ? `${instructor.firstName} ${instructor.lastName}`
-        : "Por asignar",
-      duration: `${cls.durationMinutes || 60} min`,
-      alumnRegistred: `${cls.registeredParticipantsIds.length}/${
-        cls.capacity || 15
-      }`,
-      isRegistered: false,
-      status: cls.status,
-      discipline: discipline?.name || cls.name,
-      disciplineId: cls.disciplineId,
-      date: cls.dateTime.split("T")[0],
-      time: cls.dateTime.split("T")[1].substring(0, 5),
-      color: discipline?.color || "#666",
-      capacity: cls.capacity,
-      enrolled: cls.registeredParticipantsIds.length,
-      type: cls.notes?.includes("Clase extra") ? "extra" : "regular",
-      cancelled: cls.status === "cancelled",
-      registeredParticipantsIds: cls.registeredParticipantsIds,
-      historicalData: {
-        averageAttendance: Math.floor(Math.random() * 10) + 5,
-        noShowRate: Math.random() * 0.3,
-        waitlistFrequency: Math.random() * 0.2,
-        popularityTrend: ["up", "down", "stable"][
-          Math.floor(Math.random() * 3)
-        ] as "up" | "down" | "stable",
-      },
-      notes: cls.notes || "",
-    };
-    setSelectedClass(transformedClass);
+  const handleViewClassDetails = (cls: any) => {
+    // CONTEXTO: Ahora recibimos una clase ya transformada, no necesitamos transformarla de nuevo
+    setSelectedClass(cls);
     setShowClassDetails(true);
   };
 
@@ -670,12 +751,7 @@ export function Calendar() {
                         variant="outline"
                         size="sm"
                         className="text-xs"
-                        onClick={() => {
-                          const real = classSessions.find(
-                            (c) => c.id === cls.id
-                          );
-                          if (real) handleViewClassDetails(real);
-                        }}
+                        onClick={() => handleViewClassDetails(cls)}
                       >
                         Ver detalles
                       </Button>
