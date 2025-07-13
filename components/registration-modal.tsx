@@ -14,6 +14,7 @@ import {
 import { Clock, User, Clock3, Users } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatTimeLocal } from "@/lib/utils";
 
 interface FormattedClassItem {
   id: string;
@@ -61,8 +62,8 @@ export default function RegistrationModal({
 
   // Formatear la hora desde classItem.dateTime
   const formattedTime = classItem.dateTime
-    ? format(parseISO(classItem.dateTime), "p", { locale: es })
-    : "";
+    ? formatTimeLocal(classItem.dateTime)
+    : "Hora no disponible";
 
   return (
     <Drawer

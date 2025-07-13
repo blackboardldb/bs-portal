@@ -6,6 +6,7 @@ import StaticCarousel from "@/components/StaticCarousel";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatTimeLocal, formatWeekday } from "@/lib/utils";
 
 export default function Page() {
   const { users, classSessions, instructors } = useBlackSheepStore();
@@ -83,12 +84,8 @@ export default function Page() {
         isRegistered: session.registeredParticipantsIds.includes(
           currentUser.id
         ),
-        formattedDayLabel: format(new Date(session.dateTime), "EEEE", {
-          locale: es,
-        }),
-        formattedTime: format(new Date(session.dateTime), "HH:mm", {
-          locale: es,
-        }),
+        formattedDayLabel: formatWeekday(session.dateTime),
+        formattedTime: formatTimeLocal(session.dateTime),
       };
     });
 

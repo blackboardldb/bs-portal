@@ -32,19 +32,12 @@ import { initialMembershipPlans } from "@/lib/mock-data";
 import type { FitCenterUserProfile } from "@/lib/types";
 import { usePagination, usePaginationControls } from "@/lib/use-pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDateShort } from "@/lib/utils";
 
 // Función helper para formatear fechas
 const formatDate = (dateString: string | undefined): string => {
   if (!dateString) return "-";
-
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return "-";
-
-  return date.toLocaleDateString("es-ES", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateShort(dateString);
 };
 
 export default function AlumnosPage() {

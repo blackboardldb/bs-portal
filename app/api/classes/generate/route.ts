@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/mock-database";
+import { localToUTC, createLocalDate } from "@/lib/utils";
 
 // Helper function to create local date string without timezone conversion
 function createLocalDateTime(
@@ -94,8 +95,16 @@ export async function POST(request: NextRequest) {
         } (día ${dayOfWeek}) - Extra: ${isExtraClass}`
       );
 
-      // Create class for this day with correct local time
-      const classDateTime = createLocalDateTime(date, hours, minutes);
+      // Create class for this day with correct local time using new utility function
+      const localDate = createLocalDate(
+        date.getFullYear(),
+        date.getMonth() + 1,
+        date.getDate(),
+        hours,
+        minutes
+      );
+      const classDateTime = localToUTC(localDate, time);
+
       console.log(
         `📅 Fecha creada: ${classDateTime} (original: ${
           date.toISOString().split("T")[0]
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
           organizationId: "org_blacksheep_001",
           disciplineId,
           name: `Class ${time}`,
-          dateTime: classDateTime, // Use local time string
+          dateTime: classDateTime, // Use UTC time string
           durationMinutes: 60,
           instructorId,
           capacity: maxCapacity,

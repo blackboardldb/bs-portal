@@ -12,6 +12,7 @@ import { es } from "date-fns/locale";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClassSession } from "@/lib/types";
+import { formatTimeLocal, formatWeekday } from "@/lib/utils";
 
 interface FormattedClassItem {
   id: string;
@@ -68,8 +69,8 @@ export default function CalendarPage() {
           session.capacity || 15
         }`,
         isRegistered,
-        formattedDayLabel: format(sessionDate, "EEEE", { locale: es }),
-        formattedTime: format(sessionDate, "HH:mm", { locale: es }),
+        formattedDayLabel: formatWeekday(sessionDate),
+        formattedTime: formatTimeLocal(sessionDate),
         status: session.status || "scheduled",
       };
     },

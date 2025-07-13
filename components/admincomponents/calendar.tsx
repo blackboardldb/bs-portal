@@ -42,15 +42,26 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import {
-  getMonth,
-  getYear,
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
-  format,
   getDay,
+  getYear,
+  getMonth,
+  format,
   parseISO,
 } from "date-fns";
+import { es } from "date-fns/locale";
+import {
+  formatDateLocal,
+  formatTimeLocal,
+  formatWeekday,
+  toDateString,
+  toTimeString,
+  createLocalDate,
+  localToUTC,
+  getDayOfWeekShort,
+} from "@/lib/utils";
 
 // Tipos específicos para el calendario
 type TransformedClass = {
@@ -157,23 +168,26 @@ export function Calendar() {
           if (scheduleForDay) {
             scheduleForDay.times.forEach((time: string) => {
               const [hour, minute] = time.split(":");
-              const classDateTime = new Date(day);
-              classDateTime.setHours(
+
+              // Usar las nuevas funciones de zona horaria
+              const localDate = createLocalDate(
+                day.getFullYear(),
+                day.getMonth() + 1,
+                day.getDate(),
                 parseInt(hour, 10),
-                parseInt(minute, 10),
-                0,
-                0
+                parseInt(minute, 10)
               );
+              const classDateTime = localToUTC(localDate, time);
 
               generatedClasses.push({
                 id: `gen_${discipline.id}_${format(
-                  classDateTime,
+                  localDate,
                   "yyyy-MM-dd_HH-mm"
                 )}`,
                 organizationId: "org_blacksheep_001",
                 disciplineId: discipline.id,
                 name: discipline.name,
-                dateTime: classDateTime.toISOString(),
+                dateTime: classDateTime,
                 durationMinutes: 60, // Se puede hacer configurable en la disciplina
                 instructorId: "inst_default", // Lógica de asignación puede ir aquí
                 capacity: 15, // Se puede hacer configurable
@@ -286,9 +300,7 @@ export function Calendar() {
 
   // Función helper para formatear fechas sin problemas de zona horaria
   const formatDateForDisplay = (dateString: string) => {
-    const [year, month, day] = dateString.split("-").map(Number);
-    const date = new Date(year, month - 1, day); // month - 1 porque los meses van de 0-11
-    return date.toLocaleDateString("es-ES", {
+    return formatDateLocal(dateString, {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -298,10 +310,7 @@ export function Calendar() {
 
   // Función helper para obtener fecha en formato YYYY-MM-DD sin zona horaria
   const getDateString = (date: Date) => {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(date.getDate()).padStart(2, "0")}`;
+    return toDateString(date);
   };
 
   // CONTEXTO: Este `useMemo` ahora transforma las clases generadas localmente (`monthlyClasses`)
@@ -331,8 +340,8 @@ export function Calendar() {
           status: cls.status,
           discipline: discipline?.name || cls.name,
           disciplineId: cls.disciplineId,
-          date: format(parseISO(cls.dateTime), "yyyy-MM-dd"),
-          time: format(parseISO(cls.dateTime), "HH:mm"),
+          date: toDateString(cls.dateTime),
+          time: toTimeString(cls.dateTime),
           color: discipline?.color || "#666",
           capacity: cls.capacity,
           enrolled: cls.registeredParticipantsIds.length,

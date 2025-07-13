@@ -387,3 +387,214 @@ export function convertClassSessionToClassItem(
     color: discipline?.color || "#6b7280",
   };
 }
+
+// ===== FUNCIONES DE MANEJO DE FECHAS CON ZONA HORARIA =====
+
+// Zona horaria de la organización (configurable)
+const ORGANIZATION_TIMEZONE = "America/Santiago";
+
+/**
+ * Convierte una fecha local a UTC para almacenamiento
+ * @param localDate - Fecha en zona horaria local
+ * @param timeString - Hora en formato "HH:mm"
+ * @returns ISO string en UTC
+ */
+export function localToUTC(localDate: Date, timeString: string): string {
+  const [hours, minutes] = timeString.split(":").map(Number);
+
+  // Crear fecha en zona horaria local
+  const localDateTime = new Date(localDate);
+  localDateTime.setHours(hours, minutes, 0, 0);
+
+  // Convertir a UTC
+  return localDateTime.toISOString();
+}
+
+/**
+ * Convierte una fecha UTC a la zona horaria local para mostrar
+ * @param utcDateString - Fecha UTC como string ISO
+ * @returns Date object en zona horaria local
+ */
+export function utcToLocal(utcDateString: string): Date {
+  return new Date(utcDateString);
+}
+
+/**
+ * Formatea una fecha para mostrar en la zona horaria local
+ * @param date - Date object o string ISO
+ * @param options - Opciones de formateo
+ * @returns String formateado
+ */
+export function formatDateLocal(
+  date: Date | string,
+  options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }
+): string {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return new Intl.DateTimeFormat("es-CL", {
+    timeZone: ORGANIZATION_TIMEZONE,
+    ...options,
+  }).format(dateObj);
+}
+
+/**
+ * Formatea una fecha y hora para mostrar en la zona horaria local
+ * @param date - Date object o string ISO
+ * @returns String formateado con fecha y hora
+ */
+export function formatDateTimeLocal(date: Date | string): string {
+  return formatDateLocal(date, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Formatea solo la hora para mostrar en la zona horaria local
+ * @param date - Date object o string ISO
+ * @returns String formateado con hora
+ */
+export function formatTimeLocal(date: Date | string): string {
+  return formatDateLocal(date, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Formatea fecha en formato corto (1 jun 2025)
+ * @param date - Date object o string ISO
+ * @returns String formateado
+ */
+export function formatDateShort(date: Date | string): string {
+  return formatDateLocal(date, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * Formatea fecha para mostrar día de la semana
+ * @param date - Date object o string ISO
+ * @returns String formateado con día de la semana
+ */
+export function formatWeekday(date: Date | string): string {
+  return formatDateLocal(date, {
+    weekday: "long",
+  });
+}
+
+/**
+ * Formatea fecha para mostrar día y mes
+ * @param date - Date object o string ISO
+ * @returns String formateado
+ */
+export function formatDayMonth(date: Date | string): string {
+  return formatDateLocal(date, {
+    day: "numeric",
+    month: "long",
+  });
+}
+
+/**
+ * Crea una fecha local a partir de componentes
+ * @param year - Año
+ * @param month - Mes (1-12)
+ * @param day - Día
+ * @param hours - Hora (0-23)
+ * @param minutes - Minutos (0-59)
+ * @returns Date object en zona horaria local
+ */
+export function createLocalDate(
+  year: number,
+  month: number,
+  day: number,
+  hours: number = 0,
+  minutes: number = 0
+): Date {
+  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+}
+
+/**
+ * Obtiene la fecha actual en la zona horaria local
+ * @returns Date object
+ */
+export function getCurrentLocalDate(): Date {
+  return new Date();
+}
+
+/**
+ * Verifica si una fecha es hoy
+ * @param date - Date object o string ISO
+ * @returns boolean
+ */
+export function isToday(date: Date | string): boolean {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  const today = getCurrentLocalDate();
+
+  return (
+    dateObj.getFullYear() === today.getFullYear() &&
+    dateObj.getMonth() === today.getMonth() &&
+    dateObj.getDate() === today.getDate()
+  );
+}
+
+/**
+ * Verifica si una fecha es en el futuro
+ * @param date - Date object o string ISO
+ * @returns boolean
+ */
+export function isFuture(date: Date | string): boolean {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return dateObj > getCurrentLocalDate();
+}
+
+/**
+ * Verifica si una fecha es en el pasado
+ * @param date - Date object o string ISO
+ * @returns boolean
+ */
+export function isPast(date: Date | string): boolean {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return dateObj < getCurrentLocalDate();
+}
+
+/**
+ * Obtiene el día de la semana como string corto
+ * @param date - Date object o string ISO
+ * @returns String del día de la semana
+ */
+export function getDayOfWeekShort(date: Date | string): string {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  const days = ["dom", "lun", "mar", "mie", "jue", "vie", "sab"];
+  return days[dateObj.getDay()];
+}
+
+/**
+ * Convierte una fecha a string YYYY-MM-DD
+ * @param date - Date object o string ISO
+ * @returns String en formato YYYY-MM-DD
+ */
+export function toDateString(date: Date | string): string {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return dateObj.toISOString().split("T")[0];
+}
+
+/**
+ * Convierte una fecha a string HH:mm
+ * @param date - Date object o string ISO
+ * @returns String en formato HH:mm
+ */
+export function toTimeString(date: Date | string): string {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return `${String(dateObj.getHours()).padStart(2, "0")}:${String(
+    dateObj.getMinutes()
+  ).padStart(2, "0")}`;
+}
