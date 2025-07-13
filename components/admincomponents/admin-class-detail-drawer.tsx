@@ -19,7 +19,12 @@ import type { FitCenterUserProfile, ClassListItem } from "@/lib/types";
 import { parseISO, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Users, Plus, Search, Save, Loader2 } from "lucide-react";
-import { formatTimeLocal, formatWeekday, formatDayMonth } from "@/lib/utils";
+import {
+  formatTimeLocal,
+  formatWeekday,
+  formatDayMonth,
+  isClassPast,
+} from "@/lib/utils";
 
 interface AdminClassDetailDrawerProps {
   isOpen: boolean;
@@ -499,16 +504,17 @@ export default function AdminClassDetailDrawer({
                 <div className="border border-zinc-300 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium">Política de Cancelación</h3>
-                    {currentClassItem.status !== "cancelled" && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleCancelClass}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? "Cancelando..." : "Cancelar Clase"}
-                      </Button>
-                    )}
+                    {currentClassItem.status !== "cancelled" &&
+                      !isClassPast(currentClassItem.dateTime) && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleCancelClass}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? "Cancelando..." : "Cancelar Clase"}
+                        </Button>
+                      )}
                   </div>
                   {applicableCancellationRule ? (
                     <p className="text-sm text-muted-foreground">

@@ -61,6 +61,7 @@ import {
   createLocalDate,
   localToUTC,
   getDayOfWeekShort,
+  isClassPast,
 } from "@/lib/utils";
 
 // Tipos específicos para el calendario
@@ -625,11 +626,12 @@ export function Calendar() {
           console.log("✅ Response data:", responseData);
 
           // Actualizar el estado local inmediatamente usando la fecha formateada
+          // Solo cancelar clases futuras
           setMonthlyClasses((prev) =>
             prev.map((cls) => {
               // Usar la misma lógica que en transformedClasses para obtener la fecha
               const classDate = toDateString(cls.dateTime);
-              return classDate === formattedDate
+              return classDate === formattedDate && !isClassPast(cls.dateTime)
                 ? { ...cls, status: "cancelled" }
                 : cls;
             })
@@ -641,9 +643,16 @@ export function Calendar() {
           setShowCancelAllDialog(false);
           setSelectedDate(null); // Cerrar el dialog
 
+          const futureClassesCount = classesForSelectedDate.filter(
+            (cls) => !isClassPast(cls.dateTime)
+          ).length;
           toast({
-            title: "Todas las Clases Canceladas",
-            description: `Todas las clases programadas para el ${formatDateForDisplay(
+            title: "Clases Canceladas",
+            description: `${futureClassesCount} clase${
+              futureClassesCount !== 1 ? "s" : ""
+            } futura${
+              futureClassesCount !== 1 ? "s" : ""
+            } para el ${formatDateForDisplay(
               selectedDate
             )} han sido canceladas.`,
           });
@@ -761,12 +770,19 @@ export function Calendar() {
               const dayClasses = getClassesForDate(day.dateString);
               const isToday = day.dateString === getDateString(new Date());
 
+              // Verificar si todas las clases del día ya pasaron
+              const allClassesPast =
+                dayClasses.length > 0 &&
+                dayClasses.every((cls) => isClassPast(cls.dateTime));
+
               return (
                 <div
                   key={index}
                   className={`min-h-[120px] p-2 border rounded-lg text-left hover:bg-gray-50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1 cursor-pointer ${
                     !day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""
-                  } ${isToday ? "bg-blue-50 border-blue-200" : ""}`}
+                  } ${isToday ? "bg-blue-50 border-blue-200" : ""} ${
+                    allClassesPast ? "opacity-70" : ""
+                  }`}
                   onClick={() => setSelectedDate(day.dateString)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -833,16 +849,18 @@ export function Calendar() {
                               </div>
                             </div>
 
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCancelClass(cls.id);
-                              }}
-                              className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                              aria-label={`Cancelar clase ${cls.discipline}`}
-                            >
-                              <X className="w-2 h-2 text-white" />
-                            </button>
+                            {!isClassPast(cls.dateTime) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelClass(cls.id);
+                                }}
+                                className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label={`Cancelar clase ${cls.discipline}`}
+                              >
+                                <X className="w-2 h-2 text-white" />
+                              </button>
+                            )}
                           </div>
                         ))}
 
@@ -1069,7 +1087,9 @@ export function Calendar() {
               <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
                 <h4 className="font-medium">Clases programadas</h4>
                 <div className="flex gap-2">
-                  {classesForSelectedDate.length > 0 && (
+                  {classesForSelectedDate.filter(
+                    (cls) => !isClassPast(cls.dateTime)
+                  ).length > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1088,7 +1108,13 @@ export function Calendar() {
                       )}`}
                     >
                       <AlertTriangle className="w-4 h-4 mr-2" />
-                      Cancelar Todas ({classesForSelectedDate.length})
+                      Cancelar Todas (
+                      {
+                        classesForSelectedDate.filter(
+                          (cls) => !isClassPast(cls.dateTime)
+                        ).length
+                      }
+                      )
                     </Button>
                   )}
                   <Button
@@ -1170,15 +1196,17 @@ export function Calendar() {
                       )}
                     </div>
                     <div className="flex flex-col gap-2 ml-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCancelClass(cls.id)}
-                        className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                        aria-label={`Cancelar clase ${cls.discipline} del ${cls.time}`}
-                      >
-                        Cancelar
-                      </Button>
+                      {!isClassPast(cls.dateTime) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCancelClass(cls.id)}
+                          className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                          aria-label={`Cancelar clase ${cls.discipline} del ${cls.time}`}
+                        >
+                          Cancelar
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -1222,9 +1250,10 @@ export function Calendar() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Cancelar todas las clases?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción cancelará todas las clases programadas para el{" "}
-              {selectedDate && formatDateForDisplay(selectedDate)}. Esta acción
-              no se puede deshacer.
+              Esta acción cancelará todas las clases futuras programadas para el{" "}
+              {selectedDate && formatDateForDisplay(selectedDate)}. Las clases
+              que ya pasaron no se verán afectadas. Esta acción no se puede
+              deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -567,6 +567,18 @@ export function isPast(date: Date | string): boolean {
 }
 
 /**
+ * Verifica si una clase ya pasó (considerando fecha y hora)
+ * @param classDateTime - Fecha y hora de la clase (Date object o string ISO)
+ * @returns boolean
+ */
+export function isClassPast(classDateTime: Date | string): boolean {
+  const classDate =
+    typeof classDateTime === "string" ? new Date(classDateTime) : classDateTime;
+  const now = getCurrentLocalDate();
+  return classDate < now;
+}
+
+/**
  * Obtiene el día de la semana como string corto
  * @param date - Date object o string ISO
  * @returns String del día de la semana

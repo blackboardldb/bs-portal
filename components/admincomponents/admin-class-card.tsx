@@ -15,7 +15,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { formatTimeLocal, formatWeekday, formatDayMonth } from "@/lib/utils";
+import {
+  formatTimeLocal,
+  formatWeekday,
+  formatDayMonth,
+  isClassPast,
+} from "@/lib/utils";
 import type { ClassListItem } from "@/lib/types";
 
 export interface AdminClassCardProps {
@@ -43,7 +48,7 @@ export default function AdminClassCard({
   const classDateTime = parseISO(classItem.dateTime);
   const formattedTime = formatTimeLocal(classItem.dateTime);
   const isClassToday = isToday(classDateTime);
-  const isPastClass = classDateTime < new Date(); // Clase pasada
+  const isPastClass = isClassPast(classItem.dateTime); // Clase pasada usando la nueva función
 
   const handleCancelClass = () => {
     if (onCancelClass && !isFinished) {
@@ -123,7 +128,7 @@ export default function AdminClassCard({
             >
               Ver Detalles
             </Button>
-            {!isCancelled && !isFinished && (
+            {!isCancelled && !isFinished && !isPastClass && (
               <Button
                 variant="destructive"
                 size="sm"
