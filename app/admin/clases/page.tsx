@@ -5,26 +5,43 @@ import AdminWeeklyDatePicker from "@/components/admincomponents/admin-weekly-dat
 import AdminClassList from "@/components/admincomponents/admin-class-list";
 import AdminClassDetailDrawer from "@/components/admincomponents/admin-class-detail-drawer";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
-import { startOfDay, format } from "date-fns";
+import { startOfDay, format, isPast, parseISO, isToday } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ClassSession } from "@/lib/types";
+import type { ClassSession, ClassListItem } from "@/lib/types";
+import {
+  formatTimeLocal,
+  formatWeekday,
+  formatDayMonth,
+  toDateString,
+  toTimeString,
+  createLocalDate,
+  localToUTC,
+} from "@/lib/utils";
+import {
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  getDay,
+  getYear,
+  getMonth,
+} from "date-fns";
+import type { DayOfWeek } from "@/lib/types";
 
-// Definir el tipo para los elementos de la lista
-interface ClassListItem {
-  id: string;
-  dateTime: string;
-  name: string;
-  instructor: string;
-  duration: string;
-  alumnRegistred: string;
-  isRegistered: boolean;
-}
+// CONTEXTO: Este tipo se ha enriquecido para ser 100% compatible con AdminClassDetailDrawer.
+// Ahora contiene toda la información necesaria para que el drawer muestre
+// los detalles completos de la clase, sin necesidad de hacer otra llamada a la API.
 
 export default function AdminClasesPage() {
-  const { classSessions, disciplines, fetchClassSessions } =
-    useBlackSheepStore();
+  const {
+    classSessions,
+    disciplines,
+    users,
+    fetchClassSessions,
+    fetchUsers,
+    fetchDisciplines,
+  } = useBlackSheepStore();
 
   const { toast } = useToast();
 
@@ -42,34 +59,121 @@ export default function AdminClasesPage() {
   );
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
-  // Local conversion function con tipo específico
-  const convertClassSessionToClassItem = (
-    session: ClassSession
-  ): ClassListItem => {
-    const discipline = disciplines.find((d) => d.id === session.disciplineId);
-    return {
-      id: session.id,
-      dateTime: session.dateTime,
-      name: discipline?.name || session.name,
-      instructor: "Por asignar",
-      duration: "60 min",
-      alumnRegistred: `${session.registeredParticipantsIds.length}/${
-        session.capacity || 15
-      }`,
-      isRegistered: false,
-    };
-  };
+  // CONTEXTO: Usar la misma lógica que el calendario - clases generadas dinámicamente
+  const [monthlyClasses, setMonthlyClasses] = useState<ClassSession[]>([]);
+  const [isGeneratingClasses, setIsGeneratingClasses] = useState(false);
+
+  // CONTEXTO: Función de conversión enriquecida. Ahora busca también el instructor
+  // y formatea más datos para que el ClassListItem sea completo y funcional con el drawer.
+  const convertClassSessionToClassItem = useCallback(
+    (session: ClassSession): ClassListItem => {
+      const discipline = disciplines.find((d) => d.id === session.disciplineId);
+      const instructor = users.find((u) => u.id === session.instructorId);
+      const enrolled = session.registeredParticipantsIds.length;
+
+      return {
+        id: session.id,
+        dateTime: session.dateTime,
+        name: discipline?.name || session.name,
+        instructor: instructor
+          ? `${instructor.firstName} ${instructor.lastName}`
+          : "Por asignar",
+        duration: `${session.durationMinutes || 60} min`,
+        alumnRegistred: `${enrolled}/${session.capacity || 15}`,
+        isRegistered: false, // Relevante para la vista de alumno, no de admin.
+        status: session.status,
+        discipline: discipline?.name || session.name,
+        disciplineId: session.disciplineId,
+        date: toDateString(session.dateTime),
+        time: toTimeString(session.dateTime),
+        color: discipline?.color || "#666",
+        capacity: session.capacity,
+        enrolled: enrolled,
+        registeredParticipantsIds: session.registeredParticipantsIds,
+        waitlistParticipantsIds: session.waitlistParticipantsIds,
+        notes: session.notes,
+      };
+    },
+    [disciplines, users]
+  );
+
+  // CONTEXTO: Función para generar clases dinámicamente (igual que el calendario)
+  const generateClassesForMonth = useCallback(
+    (date: Date, disciplines: any[]) => {
+      const start = startOfMonth(date);
+      const end = endOfMonth(date);
+      const daysInMonth = eachDayOfInterval({ start, end });
+      const dayMapping: DayOfWeek[] = [
+        "dom",
+        "lun",
+        "mar",
+        "mie",
+        "jue",
+        "vie",
+        "sab",
+      ];
+
+      const generatedClasses: ClassSession[] = [];
+
+      daysInMonth.forEach((day) => {
+        const dayOfWeek = dayMapping[getDay(day)];
+
+        disciplines.forEach((discipline) => {
+          const scheduleForDay = discipline.schedule?.find(
+            (s: any) => s.day === dayOfWeek
+          );
+          if (scheduleForDay) {
+            scheduleForDay.times.forEach((time: string) => {
+              const [hour, minute] = time.split(":");
+
+              // Usar las nuevas funciones de zona horaria
+              const localDate = createLocalDate(
+                day.getFullYear(),
+                day.getMonth() + 1,
+                day.getDate(),
+                parseInt(hour, 10),
+                parseInt(minute, 10)
+              );
+              const classDateTime = localToUTC(localDate, time);
+
+              generatedClasses.push({
+                id: `gen_${discipline.id}_${format(
+                  localDate,
+                  "yyyy-MM-dd_HH-mm"
+                )}`,
+                organizationId: "org_blacksheep_001",
+                disciplineId: discipline.id,
+                name: discipline.name,
+                dateTime: classDateTime,
+                durationMinutes: 60,
+                instructorId: "inst_default",
+                capacity: 15,
+                registeredParticipantsIds: [],
+                waitlistParticipantsIds: [],
+                status: "scheduled",
+                notes:
+                  "Clase generada dinámicamente desde horarios de disciplina",
+              });
+            });
+          }
+        });
+      });
+
+      setMonthlyClasses(generatedClasses);
+    },
+    []
+  );
 
   // Función para cargar clases con filtrado por fecha
   const loadClassesForDate = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Formatear fecha para la API (YYYY-MM-DD)
-      const startDate = format(selectedDate, "yyyy-MM-dd");
-      const endDate = format(selectedDate, "yyyy-MM-dd");
-
-      // Usar la nueva API con filtrado por fecha
-      await fetchClassSessions(startDate, endDate, page, limit);
+      // Cargar datos básicos
+      await fetchClassSessions();
+      await fetchUsers();
+      if (disciplines.length === 0) {
+        await fetchDisciplines();
+      }
     } catch (error) {
       console.error("Error loading classes:", error);
       toast({
@@ -80,12 +184,45 @@ export default function AdminClasesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchClassSessions, selectedDate, page, limit, toast]);
+  }, [
+    fetchClassSessions,
+    fetchUsers,
+    fetchDisciplines,
+    disciplines.length,
+    toast,
+  ]);
 
   // Cargar clases al montar el componente
   useEffect(() => {
     loadClassesForDate();
   }, [loadClassesForDate]);
+
+  // CONTEXTO: Generar clases dinámicamente como el calendario
+  useEffect(() => {
+    const now = new Date();
+    setIsGeneratingClasses(true);
+
+    // Si el mes que se ve es anterior al actual
+    if (
+      getYear(selectedDate) < getYear(now) ||
+      (getYear(selectedDate) === getYear(now) &&
+        getMonth(selectedDate) < getMonth(now))
+    ) {
+      // Cargar datos históricos desde la API
+      const start = format(startOfMonth(selectedDate), "yyyy-MM-dd");
+      const end = format(endOfMonth(selectedDate), "yyyy-MM-dd");
+      fetchClassSessions(start, end).then((data) => {
+        setMonthlyClasses(data.classes);
+        setIsGeneratingClasses(false);
+      });
+    } else {
+      // Generar clases para el mes actual o futuro
+      if (disciplines.length > 0) {
+        generateClassesForMonth(selectedDate, disciplines);
+        setIsGeneratingClasses(false);
+      }
+    }
+  }, [selectedDate, disciplines, generateClassesForMonth, fetchClassSessions]);
 
   // Manejar cambio de fecha
   const handleDateSelect = useCallback((date: Date) => {
@@ -93,20 +230,23 @@ export default function AdminClasesPage() {
     setPage(1); // Resetear a la primera página al cambiar fecha
   }, []);
 
-  // Manejar cambio de página
-  const handlePageChange = useCallback((newPage: number) => {
-    setPage(newPage);
-  }, []);
+  // CONTEXTO: Mostrar todas las clases como el calendario, sin filtrado inteligente
+  const activeClasses = useMemo(() => {
+    return monthlyClasses
+      .filter((session) => {
+        // Filtrar por fecha seleccionada
+        const sessionDate = new Date(session.dateTime);
+        const isSameDate =
+          format(sessionDate, "yyyy-MM-dd") ===
+          format(selectedDate, "yyyy-MM-dd");
 
-  // Filtrar solo clases no canceladas y usar la función centralizada de conversión
-  // Usar useMemo para mejorar rendimiento
-  const activeClasses = useMemo(
-    () =>
-      classSessions
-        .filter((session) => session.status !== "cancelled")
-        .map((session) => convertClassSessionToClassItem(session)),
-    [classSessions, disciplines, convertClassSessionToClassItem] // Se recalcula solo si cambian las sesiones, disciplinas o la función de conversión
-  );
+        if (!isSameDate) return false;
+
+        // Solo filtrar clases canceladas, mostrar todas las demás
+        return session.status !== "cancelled";
+      })
+      .map(convertClassSessionToClassItem);
+  }, [monthlyClasses, selectedDate, convertClassSessionToClassItem]);
 
   // Implementar paginación correctamente
   const paginatedClasses = useMemo(() => {
@@ -123,145 +263,120 @@ export default function AdminClasesPage() {
   };
 
   const handleCancelClass = async (classId: string) => {
-    // Buscar la sesión de clase real en el store
-    const session = classSessions.find((s) => s.id === classId);
-    if (!session) {
-      console.error("No se encontró la sesión de clase:", classId);
+    try {
+      // Buscar la clase en el estado local para verificar si es generada
+      const classToCancel = monthlyClasses.find((cls) => cls.id === classId);
+      const isGenerated = classToCancel?.id.startsWith("gen_") || false;
+
+      if (isGenerated) {
+        // Para clases generadas, solo actualizar el estado local
+        setMonthlyClasses((prev) =>
+          prev.map((cls) =>
+            cls.id === classId ? { ...cls, status: "cancelled" } : cls
+          )
+        );
+      } else {
+        // Para clases reales, usar la API
+        const response = await fetch(`/api/classes/${classId}/admin/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error("Error al cancelar la clase");
+        }
+      }
+
+      toast({
+        title: "Clase cancelada",
+        description: "La clase ha sido cancelada exitosamente",
+      });
+    } catch (error) {
+      console.error("Error canceling class:", error);
       toast({
         title: "Error",
-        description: "No se encontró la sesión de clase",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Usar la API para cancelar la clase
-      const response = await fetch(`/api/classes/${classId}/admin/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Clase cancelada",
-          description: "La clase ha sido cancelada exitosamente",
-        });
-
-        // Cerrar drawer si está abierto
-        if (selectedClass && selectedClass.id === classId) {
-          setIsDetailDrawerOpen(false);
-          setSelectedClass(null);
-        }
-
-        // Refrescar las clases para la fecha actual
-        await loadClassesForDate();
-      } else {
-        const error = await response.json();
-        console.error("Error al cancelar clase:", error.error);
-        toast({
-          title: "Error al cancelar la clase",
-          description: error.error || "Error al cancelar la clase",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error inesperado al cancelar clase:", error);
-      toast({
-        title: "Error inesperado",
-        description: "Error inesperado al cancelar la clase",
+        description: "Error al cancelar la clase",
         variant: "destructive",
       });
     }
   };
 
-  const closeDetailDrawer = () => {
+  const handleCloseDrawer = () => {
     setIsDetailDrawerOpen(false);
     setSelectedClass(null);
   };
 
-  // Mostrar skeleton loader mientras carga
-  if (isLoading && classSessions.length === 0) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-3 sm:pt-12">
-        <h1 className="text-4xl font-bold text-gray-900 pb-6 hidden sm:block">
-          Gestión de Clases
-        </h1>
+  return (
+    <div className="p-4 md:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-2xl font-bold">Gestión de Clases</h1>
+        <div className="text-sm text-muted-foreground">
+          Herramienta operativa para instructores
+        </div>
+      </div>
+
+      {/* Selector de fecha semanal */}
+      <AdminWeeklyDatePicker
+        selectedDate={selectedDate}
+        onDateSelect={handleDateSelect}
+      />
+
+      {/* Información de resultados */}
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-muted-foreground">
+          {isLoading
+            ? "Cargando clases..."
+            : `Mostrando ${paginatedClasses.length} de ${
+                activeClasses.length
+              } clases para ${format(selectedDate, "dd/MM/yyyy")}`}
+        </p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Siguiente
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Lista de clases */}
+      {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-3 sm:pt-12">
-        <h1 className="text-4xl font-bold text-gray-900 pb-6 hidden sm:block">
-          Gestión de Clases
-        </h1>
-        <AdminWeeklyDatePicker
-          selectedDate={selectedDate}
-          onDateSelect={handleDateSelect}
-          className=""
-        />
-
-        {/* Información de resultados */}
-        <div className="flex items-center justify-between mt-4 mb-2">
-          <div className="text-sm text-gray-600">
-            {isLoading
-              ? "Cargando clases..."
-              : `Mostrando ${paginatedClasses.length} de ${
-                  activeClasses.length
-                } clases para ${format(selectedDate, "dd/MM/yyyy")}`}
-          </div>
-
-          {/* Controles de paginación */}
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(Math.max(1, page - 1))}
-                disabled={page <= 1 || isLoading}
-              >
-                Anterior
-              </Button>
-              <span className="text-sm text-gray-600">
-                Página {page} de {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
-                disabled={page >= totalPages || isLoading}
-              >
-                Siguiente
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-black">
+      ) : (
         <AdminClassList
-          selectedDate={selectedDate}
           classes={paginatedClasses}
           onViewClass={handleViewClass}
           onCancelClass={handleCancelClass}
-          className="max-w-4xl mx-auto min-h-svh pb-20 px-4 py-6 md:px-6 md:py-8"
-          isLoading={isLoading}
         />
-      </div>
+      )}
 
+      {/* Drawer de detalles de clase */}
       <AdminClassDetailDrawer
         isOpen={isDetailDrawerOpen}
-        onClose={closeDetailDrawer}
+        onClose={handleCloseDrawer}
         classItem={selectedClass}
         onCancelClass={handleCancelClass}
       />
-    </>
+    </div>
   );
 }

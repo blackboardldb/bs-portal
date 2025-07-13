@@ -330,3 +330,25 @@ export interface PendingRenewalRequest {
   requestedPaymentMethod: "contado" | "transferencia" | "debito" | "credito";
   requestDate: string; // ISO 8601
 }
+
+// Tipo enriquecido para la vista de clases del admin
+export interface ClassListItem {
+  id: string;
+  dateTime: string;
+  name: string;
+  instructor: string;
+  duration: string;
+  alumnRegistred: string;
+  isRegistered: boolean;
+  status: string;
+  discipline: string;
+  disciplineId: string;
+  date: string;
+  time: string;
+  color: string;
+  capacity: number;
+  enrolled: number;
+  registeredParticipantsIds: string[];
+  waitlistParticipantsIds?: string[];
+  notes?: string;
+}

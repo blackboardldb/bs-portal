@@ -589,27 +589,55 @@ export function Calendar() {
   };
 
   const handleCancelAllClasses = async () => {
+    console.log("🚀 handleCancelAllClasses iniciado con fecha:", selectedDate);
     if (selectedDate) {
       try {
+        console.log("📡 Enviando request a /api/classes/admin/cancel-bulk");
+        console.log("📦 Payload:", { date: selectedDate });
+
+        // Asegurar que la fecha esté en el formato correcto YYYY-MM-DD
+        const formattedDate = selectedDate.split("T")[0]; // Tomar solo la parte de la fecha
+        console.log("📅 Fecha formateada:", formattedDate);
+
+        // Debug adicional para verificar fechas
+        console.log("🔍 Debug de fechas:", {
+          selectedDate,
+          formattedDate,
+          classesForSelectedDate: classesForSelectedDate.map((cls) => ({
+            id: cls.id,
+            date: cls.date,
+            dateTime: cls.dateTime,
+            matchesSelectedDate: cls.date === selectedDate,
+          })),
+        });
+
         const response = await fetch("/api/classes/admin/cancel-bulk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: selectedDate }),
+          body: JSON.stringify({ date: formattedDate }),
         });
+
+        console.log("📡 Response status:", response.status);
+        console.log("📡 Response ok:", response.ok);
+
         if (response.ok) {
-          // Actualizar el estado local inmediatamente
+          const responseData = await response.json();
+          console.log("✅ Response data:", responseData);
+
+          // Actualizar el estado local inmediatamente usando la fecha formateada
           setMonthlyClasses((prev) =>
             prev.map((cls) => {
-              const classDateTime = new Date(cls.dateTime);
-              const classDate = getDateString(classDateTime);
-              return classDate === selectedDate
+              // Usar la misma lógica que en transformedClasses para obtener la fecha
+              const classDate = toDateString(cls.dateTime);
+              return classDate === formattedDate
                 ? { ...cls, status: "cancelled" }
                 : cls;
             })
           );
 
-          // También actualizar desde el servidor
+          // No regenerar las clases, solo sincronizar con el servidor
           await fetchClassSessions();
+
           setShowCancelAllDialog(false);
           setSelectedDate(null); // Cerrar el dialog
 
@@ -621,6 +649,7 @@ export function Calendar() {
           });
         } else {
           const error = await response.json();
+          console.error("❌ API Error:", error);
           toast({
             title: "Error al Cancelar Todas las Clases",
             description: error.message || "Error al cancelar todas las clases.",
@@ -628,6 +657,7 @@ export function Calendar() {
           });
         }
       } catch (error) {
+        console.error("❌ Error en handleCancelAllClasses:", error);
         toast({
           title: "Error al Cancelar Todas las Clases",
           description: "Error inesperado al cancelar todas las clases.",
@@ -645,9 +675,26 @@ export function Calendar() {
 
   const classesForSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
-    return transformedClasses.filter(
+    const filtered = transformedClasses.filter(
       (cls) => cls.date === selectedDate && !cls.cancelled
     );
+    console.log("🔍 Debug classesForSelectedDate:", {
+      selectedDate,
+      totalClasses: transformedClasses.length,
+      filteredClasses: filtered.length,
+      allClassesForDate: transformedClasses.filter(
+        (cls) => cls.date === selectedDate
+      ),
+      // Debug de fechas para ver si hay problemas de zona horaria
+      sampleClasses: transformedClasses.slice(0, 3).map((cls) => ({
+        id: cls.id,
+        originalDateTime: cls.dateTime,
+        convertedDate: cls.date,
+        selectedDate: selectedDate,
+        matches: cls.date === selectedDate,
+      })),
+    });
+    return filtered;
   }, [selectedDate, transformedClasses]);
 
   return (
@@ -1026,14 +1073,22 @@ export function Calendar() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setShowCancelAllDialog(true)}
+                      onClick={() => {
+                        console.log("🔘 Botón Cancelar Todas clickeado");
+                        console.log("📊 Estado actual:", {
+                          selectedDate,
+                          classesCount: classesForSelectedDate.length,
+                          showCancelAllDialog,
+                        });
+                        setShowCancelAllDialog(true);
+                      }}
                       className="text-red-600 hover:text-red-700"
                       aria-label={`Cancelar todas las clases del ${formatDateForDisplay(
                         selectedDate
                       )}`}
                     >
                       <AlertTriangle className="w-4 h-4 mr-2" />
-                      Cancelar Todas
+                      Cancelar Todas ({classesForSelectedDate.length})
                     </Button>
                   )}
                   <Button

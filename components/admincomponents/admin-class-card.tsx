@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { parseISO, isToday } from "date-fns";
-import { ClassItem } from "@/lib/mock-data";
 import { ClassStatusBadge } from "@/components/class-status-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,10 +16,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatTimeLocal, formatWeekday, formatDayMonth } from "@/lib/utils";
+import type { ClassListItem } from "@/lib/types";
 
 export interface AdminClassCardProps {
-  classItem: ClassItem;
-  onViewClass: (classItem: ClassItem) => void;
+  classItem: ClassListItem;
+  onViewClass: (classItem: ClassListItem) => void;
   onCancelClass?: (classId: string) => void;
 }
 
@@ -43,6 +43,7 @@ export default function AdminClassCard({
   const classDateTime = parseISO(classItem.dateTime);
   const formattedTime = formatTimeLocal(classItem.dateTime);
   const isClassToday = isToday(classDateTime);
+  const isPastClass = classDateTime < new Date(); // Clase pasada
 
   const handleCancelClass = () => {
     if (onCancelClass && !isFinished) {
@@ -59,64 +60,79 @@ export default function AdminClassCard({
           ${
             isCancelled
               ? "opacity-20 bg-white"
+              : isPastClass
+              ? "opacity-50 border-gray-100 bg-white"
               : "border-gray-100 hover:shadow-md hover:border-gray-300 bg-white"
           }
         `}
       >
         {/* Badge de estado */}
         <div className="absolute top-2 right-2">
-          <ClassStatusBadge classItem={classItem} />
+          <ClassStatusBadge
+            classItem={{
+              ...classItem,
+              status: classItem.status as
+                | "scheduled"
+                | "cancelled"
+                | "completed"
+                | "in_progress"
+                | undefined,
+            }}
+          />
         </div>
 
-        {/* Información principal */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900">{classItem.name}</h3>
-            <span className="text-sm text-gray-500">{classItem.duration}</span>
-          </div>
-
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">{classItem.instructor}</span>
-            <span className="text-gray-500">{classItem.alumnRegistred}</span>
-          </div>
-
-          {/* Fecha y hora */}
-          <div className="text-sm text-gray-600">
-            <div className="font-medium">
-              {formatWeekday(classItem.dateTime)}{" "}
-              {formatDayMonth(classItem.dateTime)}
+        {/* Layout principal con flex */}
+        <div className="flex items-center gap-4">
+          {/* Contenido a la izquierda */}
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">{classItem.name}</h3>
+              <span className="text-sm text-gray-500">
+                {classItem.duration}
+              </span>
             </div>
-            <div className="text-gray-500">a las {formattedTime}</div>
+
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">{classItem.instructor}</span>
+              <span className="text-gray-500">{classItem.alumnRegistred}</span>
+            </div>
+
+            {/* Fecha y hora */}
+            <div className="text-sm text-gray-600">
+              <div className="font-medium">
+                {formatWeekday(classItem.dateTime)}{" "}
+                {formatDayMonth(classItem.dateTime)}
+              </div>
+              <div className="text-gray-500">a las {formattedTime}</div>
+            </div>
+
+            {/* Indicador de clase de hoy */}
+            {isClassToday && (
+              <Badge variant="secondary" className="text-xs">
+                Hoy
+              </Badge>
+            )}
           </div>
 
-          {/* Indicador de clase de hoy */}
-          {isClassToday && (
-            <Badge variant="secondary" className="text-xs">
-              Hoy
-            </Badge>
-          )}
-        </div>
-
-        {/* Botones de acción */}
-        <div className="mt-3 flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onViewClass(classItem)}
-            className="flex-1"
-          >
-            Ver Detalles
-          </Button>
-          {!isCancelled && !isFinished && (
+          {/* Botones a la derecha */}
+          <div className="flex flex-col gap-2">
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
-              onClick={() => setShowCancelDialog(true)}
-              className="flex-1"
+              onClick={() => onViewClass(classItem)}
             >
-              Cancelar
+              Ver Detalles
             </Button>
-          )}
+            {!isCancelled && !isFinished && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowCancelDialog(true)}
+              >
+                Cancelar
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

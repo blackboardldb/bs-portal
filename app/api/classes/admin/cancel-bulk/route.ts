@@ -6,19 +6,41 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { date } = body;
 
+    console.log("🔍 API cancel-bulk recibió fecha:", date);
+    console.log("🔍 Tipo de fecha:", typeof date);
+
     if (!date) {
       return NextResponse.json({ error: "date is required" }, { status: 400 });
     }
 
+    // Validar formato de fecha (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      console.error("❌ Formato de fecha inválido:", date);
+      return NextResponse.json(
+        { error: "Invalid date format. Expected YYYY-MM-DD" },
+        { status: 400 }
+      );
+    }
+
+    console.log("✅ Formato de fecha válido:", date);
+
     // Get all classes for the specified date
+    // Buscar clases que contengan la fecha en su dateTime
+    console.log("🔍 Buscando clases para la fecha:", date);
+
     const classes = await prisma.classSession.findMany({
       where: {
         dateTime: {
-          gte: new Date(date + "T00:00:00"),
-          lt: new Date(date + "T23:59:59"),
+          contains: date, // Buscar clases que contengan la fecha en el string
         },
         status: { not: "cancelled" },
       },
+    });
+
+    console.log("📊 Clases encontradas:", classes.length);
+    classes.forEach((cls) => {
+      console.log(`  - ${cls.id}: ${cls.dateTime}`);
     });
 
     if (classes.length === 0) {

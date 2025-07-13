@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
-import type { FitCenterUserProfile } from "@/lib/types";
+import type { FitCenterUserProfile, ClassListItem } from "@/lib/types";
 import { parseISO, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Users, Plus, Search, Save, Loader2 } from "lucide-react";
@@ -24,21 +24,7 @@ import { formatTimeLocal, formatWeekday, formatDayMonth } from "@/lib/utils";
 interface AdminClassDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  classItem: {
-    id: string;
-    dateTime: string;
-    name: string;
-    instructor: string;
-    duration: string;
-    alumnRegistred: string;
-    isRegistered: boolean;
-    status?: string;
-    disciplineId?: string;
-    capacity?: number;
-    notes?: string;
-    registeredParticipantsIds?: string[];
-    waitlistParticipantsIds?: string[];
-  } | null;
+  classItem: ClassListItem | null;
   onCancelClass: (classId: string) => void;
 }
 

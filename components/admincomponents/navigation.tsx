@@ -7,18 +7,19 @@ import {
   LayoutDashboard,
   Users,
   GraduationCap,
-  UserCheck,
   Calendar,
   CreditCard,
   Settings,
   Bell,
+  ClipboardList,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Alumnos", href: "/admin/alumnos", icon: Users },
   { name: "Instructores", href: "/admin/instructores", icon: GraduationCap },
-  { name: "calendario", href: "/admin/calendario", icon: Calendar },
+  { name: "Clases", href: "/admin/clases", icon: ClipboardList },
+  { name: "Calendario", href: "/admin/calendario", icon: Calendar },
   { name: "Notificaciones", href: "/admin/alertas", icon: Bell },
   { name: "Horarios", href: "/admin/horarios", icon: Calendar },
   { name: "Planes", href: "/admin/planes", icon: CreditCard },
