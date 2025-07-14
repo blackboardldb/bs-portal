@@ -34,6 +34,7 @@ import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
 import { ClassSession, DayOfWeek } from "@/lib/types";
 import AdminClassDetailDrawer from "./admin-class-detail-drawer";
+import ClassCard from "./class-card";
 import { useClassSchedule } from "@/lib/hooks/useClassSchedule";
 import {
   Plus,
@@ -188,7 +189,7 @@ export function Calendar() {
           const instructor = users.find((u) => u.id === cls.instructorId);
           const instructorName = instructor
             ? `${instructor.firstName} ${instructor.lastName}`
-            : "Por asignar";
+            : "";
 
           const classDate = new Date(cls.dateTime);
           const isGenerated = cls.isGenerated || cls.id.startsWith("gen_");
@@ -727,71 +728,15 @@ export function Calendar() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   {classesForSelectedDate.map((cls) => (
-                    <Card key={cls.id} className="relative">
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="font-semibold text-lg">
-                              {cls.name}
-                            </h4>
-                            <p className="text-sm text-gray-600">
-                              {cls.instructor}
-                            </p>
-                          </div>
-                          <Badge
-                            variant={
-                              cls.isGenerated
-                                ? "secondary"
-                                : cls.isExtra
-                                ? "default"
-                                : "outline"
-                            }
-                            className="text-xs"
-                          >
-                            {cls.isGenerated
-                              ? "Generada"
-                              : cls.isExtra
-                              ? "Extra"
-                              : "Regular"}
-                          </Badge>
-                        </div>
-
-                        <div className="flex items-center gap-2 mb-4 text-sm text-gray-600">
-                          {cls.instructor !== "Por asignar" && (
-                            <>
-                              <User className="w-4 h-4" />
-                              <span>{cls.instructor}</span>
-                            </>
-                          )}
-                          <Clock className="w-4 h-4" />
-                          <span>{cls.time}</span>
-                          <Clock className="w-4 h-4" />
-                          <span>{cls.duration}</span>
-                          <Users className="w-4 h-4" />
-                          <span>{cls.alumnRegistred}</span>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => {
-                              handleViewClassDetails(cls);
-                              setSelectedDate(null);
-                            }}
-                          >
-                            Ver Detalles
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCancelClass(cls.id)}
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <ClassCard
+                      key={cls.id}
+                      cls={cls}
+                      onViewDetails={(cls) => {
+                        handleViewClassDetails(cls);
+                        setSelectedDate(null);
+                      }}
+                      onCancel={handleCancelClass}
+                    />
                   ))}
                 </div>
               </>
