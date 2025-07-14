@@ -1,18 +1,22 @@
+"use client";
+
 import { UserProfile } from "@/components/user-profile";
 import Link from "next/link";
-export default function Home() {
+import { Button } from "@/components/ui/button";
+
+export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-black">
-      <section className="p-4 mx-auto space-y-4 max-w-4xl">
+      <section className="p-4 mx-auto space-y-6 max-w-4xl pb-28">
         <UserProfile />
-        <div className="flex justify-end mt-8">
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+        <Link href="/" className="w-full block">
+          <Button
+            variant="outline"
+            className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
           >
-            Logout
-          </Link>
-        </div>
+            Cerrar Sesión (Demo)
+          </Button>
+        </Link>
       </section>
     </main>
   );

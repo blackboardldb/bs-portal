@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { HomePage } from "@/components/HomePage";
 import Logo from "@/components/Logo";
 import StaticCarousel from "@/components/StaticCarousel";
@@ -7,30 +8,58 @@ import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatTimeLocal, formatWeekday } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Page() {
-  const { users, classSessions, instructors } = useBlackSheepStore();
+  // --- 1. OBTENCIÓN DE DATOS ---
+  // Se utiliza el store de Zustand para acceder a los datos y funciones de carga.
+  const {
+    users,
+    classSessions,
+    instructors,
+    fetchUsers,
+    fetchClassSessions,
+    fetchInstructors,
+  } = useBlackSheepStore();
 
-  // Get current user (Antonia for demo)
-  const currentUser =
-    users.find((user) => user.id === "usr_antonia_abc123") || users[0];
+  // Efecto para cargar los datos maestros una sola vez si el store está vacío.
+  useEffect(() => {
+    if (users.length === 0) fetchUsers();
+    if (classSessions.length === 0) fetchClassSessions();
+    if (instructors.length === 0) fetchInstructors();
+  }, [
+    users,
+    classSessions,
+    instructors,
+    fetchUsers,
+    fetchClassSessions,
+    fetchInstructors,
+  ]);
 
+  // --- 2. SELECCIÓN DE USUARIO Y ESTADO DE CARGA ---
+  const currentUser = useMemo(() => {
+    // Para la demo, se busca explícitamente a Antonia Ovejero por su ID correcto.
+    return users.find((user) => user.id === "usr_antonia_abc123");
+  }, [users]);
+
+  // Si no hay usuario (porque los datos aún no cargan), se muestra un esqueleto.
   if (!currentUser) {
-    return <div>Loading...</div>;
+    return (
+      <main className="min-h-screen bg-black p-4">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-96 w-full mt-4" />
+      </main>
+    );
   }
 
-  // Calculate data for HomePage
+  // --- 3. TRANSFORMACIÓN DE DATOS PARA LA UI ---
+  // Se calculan todos los valores necesarios para pasar al componente HomePage.
   const membershipType =
     currentUser.membership?.membershipType || "Plan Básico";
   const monthlyPrice = currentUser.membership?.monthlyPrice ?? 25000;
 
-  const currentMonthStats = {
-    classesAttended: 5,
-    classesContracted: 8,
-    remainingClasses: 3,
-    noShows: 0,
-    lastMinuteCancellations: 0,
-  };
+  // Usar las estadísticas REALES del perfil del usuario en lugar de datos fijos
+  const currentMonthStats = currentUser.membership.centerStats.currentMonth;
 
   const planValid = currentUser.membership?.status === "active";
   const progressPercentage =
@@ -56,12 +85,16 @@ export default function Page() {
       )
     : "31 de enero";
 
-  // Get registered classes
+  // Filtrar y mapear las próximas 3 clases a las que el usuario está inscrito.
   const registeredClasses = classSessions
     .filter((session) => {
       const sessionDate = new Date(session.dateTime);
       const now = new Date();
-      return sessionDate >= now;
+      // Corregido: Filtrar por clases futuras Y a las que el usuario está inscrito
+      return (
+        sessionDate >= now &&
+        session.registeredParticipantsIds.includes(currentUser.id)
+      );
     })
     .slice(0, 3)
     .map((session) => {
@@ -89,9 +122,13 @@ export default function Page() {
       };
     });
 
+  // --- 4. RENDERIZADO DEL COMPONENTE ---
+  // Se renderiza la estructura de la página y se pasa la data procesada a HomePage.
   return (
     <main className="min-h-screen bg-black">
-      <Logo />
+      <div className="p-4 max-w-4xl mx-auto text-white">
+        <Logo />
+      </div>
       <HomePage
         userProfile={currentUser}
         membershipType={membershipType}

@@ -1,7 +1,7 @@
 // src/components/UserProfile.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,13 +17,30 @@ import {
 import { Edit3, BarChart3, ChevronRight } from "lucide-react";
 import { StatsDrawer } from "./stats-drawer";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
-import type { FitCenterUserProfile } from "@/lib/types";
+import type { FitCenterUserProfile, MembershipStatus } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  MEMBERSHIP_STATUS_LABELS,
+  MEMBERSHIP_STATUS_COLORS,
+} from "@/lib/types";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 export function UserProfile() {
-  const { users, updateUser } = useBlackSheepStore();
-  // Get the current user (Antonia for demo)
-  const currentUser =
-    users.find((user) => user.id === "usr_antonia_abc123") || users[0];
+  const { users, fetchUsers, updateUser } = useBlackSheepStore();
+
+  // Cargar datos y seleccionar usuario de forma segura
+  useEffect(() => {
+    if (users.length === 0) {
+      fetchUsers();
+    }
+  }, [users, fetchUsers]);
+
+  const currentUser = useMemo(
+    () => users.find((user) => user.id === "usr_antonia_abc123"),
+    [users]
+  );
+
   const [userData, setUserData] = useState<FitCenterUserProfile | null>(
     currentUser || null
   );
@@ -51,18 +68,19 @@ export function UserProfile() {
   // States for drawer of statistics
   const [isStatsDrawerOpen, setIsStatsDrawerOpen] = useState(false);
 
-  // Update local state when userData changes
-  useState(() => {
-    if (userData) {
-      setEditableFirstName(userData.firstName);
-      setEditableLastName(userData.lastName);
-      setEditableEmail(userData.email);
-      setEditablePhone(userData.phone);
-      setEditableGender(userData.gender || "");
-      setEditableDateOfBirth(userData.dateOfBirth || "");
-      setEditableEmergencyContact(userData.emergencyContact || "");
+  // Sincronizar el estado del formulario cuando currentUser (desde el store) cambia
+  useEffect(() => {
+    if (currentUser) {
+      setUserData(currentUser);
+      setEditableFirstName(currentUser.firstName);
+      setEditableLastName(currentUser.lastName);
+      setEditableEmail(currentUser.email);
+      setEditablePhone(currentUser.phone || "");
+      setEditableGender(currentUser.gender || "");
+      setEditableDateOfBirth(currentUser.dateOfBirth || "");
+      setEditableEmergencyContact(currentUser.emergencyContact || "");
     }
-  });
+  }, [currentUser]);
 
   // Save function for Name
   const saveNameInfo = () => {
@@ -137,13 +155,12 @@ export function UserProfile() {
     });
   };
 
-  if (!userData) {
+  // Mostrar un esqueleto de carga mientras se obtienen los datos
+  if (!currentUser || !userData) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-center">
-          <h1 className="text-2xl font-bold mb-4">No hay usuario activo</h1>
-          <p>Por favor, contacta al administrador.</p>
-        </div>
+      <div className="space-y-6">
+        <Skeleton className="h-48 w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     );
   }
@@ -222,6 +239,59 @@ export function UserProfile() {
             </div>
           </div>
           <ChevronRight className="h-5 w-5 text-white" />
+        </div>
+
+        {/* Membership Plan Section */}
+        <div className="bg-white/5 rounded-lg p-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-3">Mi Plan</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Plan:</span>
+                <span className="font-medium text-white">
+                  {userData.membership.membershipType}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Estado:</span>
+                <span
+                  className="font-semibold"
+                  style={{
+                    color:
+                      MEMBERSHIP_STATUS_COLORS[
+                        userData.membership.status as MembershipStatus
+                      ] || "#fff",
+                  }}
+                >
+                  {MEMBERSHIP_STATUS_LABELS[
+                    userData.membership.status as MembershipStatus
+                  ] || "N/A"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Periodo:</span>
+                <span className="text-white">
+                  {format(
+                    new Date(userData.membership.currentPeriodStart),
+                    "dd/MM/yy"
+                  )}{" "}
+                  -{" "}
+                  {format(
+                    new Date(userData.membership.currentPeriodEnd),
+                    "dd/MM/yy"
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400">Clases del plan:</span>
+                <span className="text-white">
+                  {userData.membership.planConfig.classLimit === 0
+                    ? "Ilimitadas"
+                    : `${userData.membership.planConfig.classLimit} al mes`}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Profile Sections */}
