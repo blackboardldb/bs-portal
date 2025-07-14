@@ -134,33 +134,40 @@ export async function GET(request: NextRequest) {
       where: { isActive: true },
     });
 
-    // 3. Generar clases para cada día del rango que no tenga clases reales
-    const generatedClasses: ClassSession[] = [];
-    const daysInRange = eachDayOfInterval({
-      start: targetStartDate,
-      end: targetEndDate,
+    // 3. Generar todas las clases para el rango completo
+    const allGeneratedClasses = generateClassesForDateRange(
+      targetStartDate,
+      targetEndDate,
+      disciplines
+    );
+
+    // 4. Combinar clases, dando prioridad a las reales sobre las generadas.
+    // Usamos un Map para evitar duplicados en el mismo slot de tiempo/disciplina.
+    const classMap = new Map<string, ClassSession>();
+
+    // Primero, agregar todas las clases generadas al mapa.
+    allGeneratedClasses.forEach((cls) => {
+      const classDate = new Date(cls.dateTime);
+      const key = `${cls.disciplineId}:${format(
+        classDate,
+        "yyyy-MM-dd:HH-mm"
+      )}`;
+      classMap.set(key, cls);
     });
 
-    daysInRange.forEach((day) => {
-      const dayString = format(day, "yyyy-MM-dd");
-      const dayStart = new Date(`${dayString}T00:00:00Z`);
-      const dayEnd = new Date(`${dayString}T23:59:59Z`);
-
-      // Verificar si hay clases reales para este día
-      const realClassesForDay = realClasses.filter((cls) => {
-        const classDate = new Date(cls.dateTime);
-        return classDate >= dayStart && classDate <= dayEnd;
-      });
-
-      // Si no hay clases reales para este día, generar las clases
-      if (realClassesForDay.length === 0) {
-        const dayClasses = generateClassesForDay(day, disciplines);
-        generatedClasses.push(...dayClasses);
-      }
+    // Luego, sobrescribir con las clases reales. Si una clase real ocupa el mismo
+    // slot que una generada, la real tendrá precedencia.
+    realClasses.forEach((cls) => {
+      const classDate = new Date(cls.dateTime);
+      const key = `${cls.disciplineId}:${format(
+        classDate,
+        "yyyy-MM-dd:HH-mm"
+      )}`;
+      classMap.set(key, cls);
     });
 
-    // 4. Combinar clases reales y generadas
-    const allClasses = [...realClasses, ...generatedClasses].sort(
+    // 5. Convertir el mapa de vuelta a array y ordenar por fecha
+    const allClasses = Array.from(classMap.values()).sort(
       (a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
     );
 
@@ -168,8 +175,8 @@ export async function GET(request: NextRequest) {
       classes: allClasses,
       source: realClasses.length > 0 ? "mixed" : "generated",
       count: allClasses.length,
-      realClassesCount: realClasses.length,
-      generatedClassesCount: generatedClasses.length,
+      realClassesCount: realClasses.length, // Esto sigue siendo el recuento de la BD
+      generatedClassesCount: allClasses.length - realClasses.length,
     });
   } catch (error) {
     console.error("Error fetching classes by date range:", error);
