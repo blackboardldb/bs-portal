@@ -86,41 +86,47 @@ export default function Page() {
     : "31 de enero";
 
   // Filtrar y mapear las próximas 3 clases a las que el usuario está inscrito.
-  const registeredClasses = classSessions
-    .filter((session) => {
-      const sessionDate = new Date(session.dateTime);
-      const now = new Date();
-      // Corregido: Filtrar por clases futuras Y a las que el usuario está inscrito
-      return (
-        sessionDate >= now &&
-        session.registeredParticipantsIds.includes(currentUser.id)
-      );
-    })
-    .slice(0, 3)
-    .map((session) => {
-      const instructor = instructors.find(
-        (inst) => inst.id === session.instructorId
-      );
-      const instructorName = instructor
-        ? `${instructor.firstName} ${instructor.lastName}`
-        : "Instructor";
+  const registeredClasses = useMemo(() => {
+    return classSessions
+      .filter((session) => {
+        const sessionDate = new Date(session.dateTime);
+        const now = new Date();
+        // Corregido: Filtrar por clases futuras Y a las que el usuario está inscrito
+        return (
+          sessionDate >= now &&
+          session.registeredParticipantsIds.includes(currentUser.id)
+        );
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
+      ) // <-- AÑADIDO: Ordenar por fecha para obtener las más próximas
+      .slice(0, 3)
+      .map((session) => {
+        const instructor = instructors.find(
+          (inst) => inst.id === session.instructorId
+        );
+        const instructorName = instructor
+          ? `${instructor.firstName} ${instructor.lastName}`
+          : "Instructor";
 
-      return {
-        id: session.id,
-        dateTime: session.dateTime,
-        name: session.name,
-        instructor: instructorName,
-        duration: "60 min",
-        alumnRegistred: `${session.registeredParticipantsIds.length}/${
-          session.capacity || 15
-        }`,
-        isRegistered: session.registeredParticipantsIds.includes(
-          currentUser.id
-        ),
-        formattedDayLabel: formatWeekday(session.dateTime),
-        formattedTime: formatTimeLocal(session.dateTime),
-      };
-    });
+        return {
+          id: session.id,
+          dateTime: session.dateTime,
+          name: session.name,
+          instructor: instructorName,
+          duration: "60 min",
+          alumnRegistred: `${session.registeredParticipantsIds.length}/${
+            session.capacity || 15
+          }`,
+          isRegistered: session.registeredParticipantsIds.includes(
+            currentUser.id
+          ),
+          formattedDayLabel: formatWeekday(session.dateTime),
+          formattedTime: formatTimeLocal(session.dateTime),
+        };
+      });
+  }, [classSessions, instructors, currentUser.id]);
 
   // --- 4. RENDERIZADO DEL COMPONENTE ---
   // Se renderiza la estructura de la página y se pasa la data procesada a HomePage.
