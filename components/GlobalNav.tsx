@@ -31,19 +31,19 @@ export default function GlobalNav() {
       href: "/app",
       icon: <House className="w-6 h-6 mx-auto" />,
       label: "Inicio",
-      extraClass: "w-14 h-12",
+      extraClass: "w-14 h-12 block",
     },
     {
       href: "/app/calendar",
       icon: <Calendar className="w-6 h-6 mx-auto" />,
       label: "Clases",
-      extraClass: "w-14 h-12",
+      extraClass: "w-14 h-12 block",
     },
     {
       href: "/app/profile",
       icon: <CircleUser className="w-6 h-6 mx-auto" />,
       label: "Perfil",
-      extraClass: "w-14 h-12",
+      extraClass: "w-14 h-12 block",
     },
   ];
 
