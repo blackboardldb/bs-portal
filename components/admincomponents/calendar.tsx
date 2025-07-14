@@ -645,10 +645,6 @@ export function Calendar() {
                           ? "bg-blue-100 text-blue-700"
                           : "bg-green-100 text-green-700"
                       }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewClassDetails(cls);
-                      }}
                     >
                       <div className="font-medium truncate">{cls.name}</div>
                       <div className="text-xs opacity-75">
