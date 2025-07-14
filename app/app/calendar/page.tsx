@@ -393,23 +393,6 @@ export default function CalendarPage() {
     setSelectedClass(null);
   };
 
-  // Mostrar skeleton loader mientras carga
-  if (isLoading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-3 sm:pt-12">
-        <h1 className="text-4xl font-bold text-gray-900 pb-6 hidden sm:block">
-          Reserva de clases
-        </h1>
-        <Skeleton className="h-40 w-full" />
-        <div className="mt-6 space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-3 sm:pt-12">

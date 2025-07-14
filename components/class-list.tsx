@@ -49,7 +49,7 @@ export default function ClassList({
         <div className="mb-3 text-gray-300">
           <span className="text-xs uppercase">{formatDate(selectedDate)}</span>
           <p className="text-base uppercase font-semibold">
-            {classes.length} Clases disponibles
+            Cargando clases...
           </p>
         </div>
 
