@@ -13,15 +13,16 @@ import {
   parseISO,
   format,
   isBefore,
-  startOfMonth,
-  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addWeeks,
   eachDayOfInterval,
   getDay,
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClassSession } from "@/lib/types";
+import { ClassSession, DayOfWeek, ClassStatus } from "@/lib/types";
 import { formatTimeLocal, formatWeekday } from "@/lib/utils";
 
 interface FormattedClassItem {
@@ -47,7 +48,7 @@ export default function CalendarPage() {
     fetchInstructors,
     fetchDisciplines,
     fetchClassSessions,
-    createClassSession,
+    addClassSession,
     updateClassSession,
   } = useBlackSheepStore();
 
@@ -71,7 +72,7 @@ export default function CalendarPage() {
     [users]
   );
 
-  // Función centralizada de conversión de datos
+  // Función centralizada de conversión de datos - MEJORADA para manejar estados
   const convertClassSessionToFormattedItem = useCallback(
     (session: ClassSession): FormattedClassItem => {
       if (!currentUser) return {} as FormattedClassItem; // Fallback
@@ -87,6 +88,23 @@ export default function CalendarPage() {
         currentUser.id
       );
 
+      // Determinar el estado final considerando la hora actual
+      let finalStatus = session.status || "scheduled";
+      const now = new Date();
+      const sessionDateTime = new Date(session.dateTime);
+      const sessionEndTime = new Date(
+        sessionDateTime.getTime() + (session.durationMinutes || 60) * 60000
+      );
+
+      // Lógica de estado en tiempo real
+      if (session.status === "scheduled") {
+        if (now > sessionEndTime) {
+          finalStatus = "completed";
+        } else if (now >= sessionDateTime && now <= sessionEndTime) {
+          finalStatus = "in_progress";
+        }
+      }
+
       return {
         id: session.id,
         dateTime: session.dateTime,
@@ -99,7 +117,7 @@ export default function CalendarPage() {
         isRegistered,
         formattedDayLabel: formatWeekday(session.dateTime),
         formattedTime: formatTimeLocal(session.dateTime),
-        status: session.status || "scheduled",
+        status: finalStatus,
       };
     },
     [instructors, disciplines, currentUser]
@@ -140,16 +158,21 @@ export default function CalendarPage() {
     loadClassesForDate();
   }, [loadClassesForDate]);
 
-  // Lógica para generar y fusionar clases
+  // Lógica para generar y fusionar clases - OPTIMIZADA para solo 3 semanas
   const unifiedClasses = useMemo(() => {
     if (disciplines.length === 0) return classSessions;
 
     const generatedClasses: ClassSession[] = [];
-    const startRange = startOfMonth(new Date());
-    const endRange = new Date(startRange);
-    endRange.setMonth(endRange.getMonth() + 2); // Generar para los próximos 2 meses
 
-    const daysInRange = eachDayOfInterval({ start: startRange, end: endRange });
+    // OPTIMIZACIÓN: Generar solo para 3 semanas (semana actual + 2 próximas)
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 }); // Lunes
+    const threeWeeksEnd = addWeeks(currentWeekStart, 3); // 3 semanas desde hoy
+
+    const daysInRange = eachDayOfInterval({
+      start: currentWeekStart,
+      end: threeWeeksEnd,
+    });
+
     const dayMapping: DayOfWeek[] = [
       "dom",
       "lun",
@@ -199,44 +222,83 @@ export default function CalendarPage() {
       });
     });
 
-    // Fusionar clases generadas y reales
+    // FIX: Fusionar clases generadas y reales evitando duplicidad
     const classMap = new Map<string, ClassSession>();
-    generatedClasses.forEach((cls) => classMap.set(cls.id, cls));
+
+    // Primero agregar todas las clases reales
     classSessions.forEach((cls) =>
       classMap.set(cls.id, { ...cls, isGenerated: false })
     );
 
+    // Luego agregar solo las clases generadas que NO tienen una clase real equivalente
+    generatedClasses.forEach((generatedClass) => {
+      const classDateTime = new Date(generatedClass.dateTime);
+      const classKey = `${generatedClass.disciplineId}_${format(
+        classDateTime,
+        "yyyy-MM-dd_HH-mm"
+      )}`;
+
+      // Verificar si ya existe una clase real para este horario y disciplina
+      const hasRealClass = Array.from(classMap.values()).some((realClass) => {
+        if (realClass.isGenerated) return false; // Solo comparar con clases reales
+
+        const realDateTime = new Date(realClass.dateTime);
+        const realKey = `${realClass.disciplineId}_${format(
+          realDateTime,
+          "yyyy-MM-dd_HH-mm"
+        )}`;
+
+        return realKey === classKey;
+      });
+
+      // Solo agregar la clase generada si NO existe una clase real equivalente
+      if (!hasRealClass) {
+        classMap.set(generatedClass.id, generatedClass);
+      }
+    });
+
     return Array.from(classMap.values());
-  }, [disciplines, classSessions]);
+  }, [disciplines, classSessions, today]);
+
+  // NOTA: Los estados se manejan dinámicamente en convertClassSessionToFormattedItem
+  // para evitar bucles infinitos de actualización
 
   // Manejar cambio de fecha
   const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date);
   }, []);
 
-  // Transformar clases para la fecha seleccionada
+  // Transformar clases para la fecha seleccionada - MEJORADA con lógica de estados
   const getClassesForDate = useCallback(
     (date: Date): FormattedClassItem[] => {
       if (!currentUser) return [];
       const isPastDate = isBefore(date, today);
+      const isToday = isSameDay(date, today);
 
       return unifiedClasses
         .filter((session) => {
           const sessionDate = new Date(session.dateTime);
           if (!isSameDay(sessionDate, date)) return false;
 
-          // Lógica para días pasados: solo mostrar clases a las que se inscribió
+          // Lógica mejorada para días pasados: solo mostrar clases a las que se inscribió
           if (isPastDate) {
             return session.registeredParticipantsIds.includes(currentUser.id);
           }
-          // Para hoy y futuro, mostrar todas las clases no canceladas
-          return session.status !== "cancelled";
+
+          // Para hoy: mostrar todas las clases (scheduled, in_progress, completed)
+          if (isToday) {
+            return session.status !== "cancelled";
+          }
+
+          // Para futuro: mostrar solo clases programadas
+          return session.status === "scheduled";
         })
         .sort((a, b) => {
           const timeA = parseISO(a.dateTime);
           const timeB = parseISO(b.dateTime);
           return timeA.getTime() - timeB.getTime();
-        });
+        })
+        .map(convertClassSessionToFormattedItem);
     },
     [unifiedClasses, convertClassSessionToFormattedItem, currentUser, today]
   );
@@ -261,33 +323,81 @@ export default function CalendarPage() {
     );
     if (!classToUpdate) return;
 
-    // Simulación de API
-    if (classToUpdate.isGenerated) {
-      // Si es generada, la creamos como "real" y añadimos al usuario
-      const newRealClass: ClassSession = {
-        ...classToUpdate,
-        id: `cls_${Date.now()}`, // Nuevo ID real
-        isGenerated: false,
-        registeredParticipantsIds: [currentUser.id],
-      };
-      createClassSession(newRealClass);
-    } else {
-      // Si ya es real, solo actualizamos los participantes
-      const updatedParticipants = [
-        ...classToUpdate.registeredParticipantsIds,
-        currentUser.id,
-      ];
-      updateClassSession(classToUpdate.id, {
-        registeredParticipantsIds: updatedParticipants,
+    try {
+      // INTEGRACIÓN CON API REAL
+      if (classToUpdate.isGenerated) {
+        // Si es generada, crear la clase real usando la API
+        const newRealClassData = {
+          ...classToUpdate,
+          id: `cls_${Date.now()}`, // Nuevo ID real
+          isGenerated: false,
+          registeredParticipantsIds: [currentUser.id],
+        };
+
+        const createResponse = await fetch("/api/classes", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(newRealClassData),
+        });
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json();
+          throw new Error(errorData.error || "Error al crear la clase");
+        }
+
+        const createdClass = await createResponse.json();
+        addClassSession(createdClass);
+
+        // Actualizar el selectedClass con el ID de la clase real
+        setSelectedClass({
+          ...selectedClass!,
+          id: createdClass.id,
+        });
+      } else {
+        // Si ya es real, usar la API de registro
+        const response = await fetch(
+          `/api/classes/${classToUpdate.id}/register`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: currentUser.id,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Error al registrar en la clase");
+        }
+
+        const result = await response.json();
+
+        // Actualizar el estado local con la respuesta de la API
+        updateClassSession(result.class);
+      }
+
+      toast({
+        title: "Registro exitoso",
+        description: "Te has registrado exitosamente en la clase",
+      });
+
+      closeRegistrationModal();
+    } catch (error) {
+      console.error("Error registering for class:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Error al registrar en la clase",
+        variant: "destructive",
       });
     }
-
-    toast({
-      title: "Registro exitoso",
-      description: "Te has registrado exitosamente en la clase",
-    });
-
-    closeRegistrationModal();
   };
 
   const confirmCancellation = async () => {
@@ -306,20 +416,43 @@ export default function CalendarPage() {
       return;
     }
 
-    // Simulación de API
-    const updatedParticipants = classToUpdate.registeredParticipantsIds.filter(
-      (id) => id !== currentUser.id
-    );
-    updateClassSession(classToUpdate.id, {
-      registeredParticipantsIds: updatedParticipants,
-    });
+    try {
+      // INTEGRACIÓN CON API REAL
+      const response = await fetch(`/api/classes/${classToUpdate.id}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+        }),
+      });
 
-    toast({
-      title: "Cancelación exitosa",
-      description: "Has cancelado tu registro exitosamente",
-    });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al cancelar la clase");
+      }
 
-    closeCancellationModal();
+      const result = await response.json();
+
+      // Actualizar el estado local con la respuesta de la API
+      updateClassSession(result.class);
+
+      toast({
+        title: "Cancelación exitosa",
+        description: "Has cancelado tu registro exitosamente",
+      });
+
+      closeCancellationModal();
+    } catch (error) {
+      console.error("Error cancelling class:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Error al cancelar la clase",
+        variant: "destructive",
+      });
+    }
   };
 
   const closeRegistrationModal = () => {
@@ -376,9 +509,7 @@ export default function CalendarPage() {
       <div className="bg-black">
         <ClassList
           selectedDate={selectedDate}
-          classes={getClassesForDate(selectedDate).map(
-            convertClassSessionToFormattedItem
-          )}
+          classes={getClassesForDate(selectedDate)}
           onRegister={handleRegister}
           onCancel={handleCancel}
           className="max-w-4xl mx-auto min-h-svh pb-20 px-4 py-6 md:px-6 md:py-8"

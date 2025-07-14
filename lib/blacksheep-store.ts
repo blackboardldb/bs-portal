@@ -191,26 +191,55 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         limit: number = 10
       ) => {
         try {
-          // NOTA: Esta función ahora se usa principalmente para cargar clases históricas
-          // con actividad real (inscripciones, cancelaciones, etc.).
-          // Las clases del calendario admin se generan dinámicamente en el frontend.
+          // Cargar clases desde el mock database
+          const { prisma } = await import("@/lib/mock-database");
 
-          // Construir URL con parámetros de filtrado y paginación
-          const params = new URLSearchParams();
-          if (startDate) params.append("startDate", startDate);
-          if (endDate) params.append("endDate", endDate);
-          params.append("page", page.toString());
-          params.append("limit", limit.toString());
+          // Obtener todas las clases del mock database
+          const allClasses = await prisma.classSession.findMany();
 
-          const response = await fetch(`/api/classes?${params.toString()}`);
-          if (!response.ok) {
-            throw new Error("Failed to fetch class sessions");
+          // Filtrar por fecha si se especifica
+          let filteredClasses = allClasses;
+          if (startDate || endDate) {
+            filteredClasses = allClasses.filter((session: any) => {
+              const sessionDate = new Date(session.dateTime);
+              const start = startDate ? new Date(startDate) : null;
+              const end = endDate ? new Date(endDate) : null;
+
+              if (start && end) {
+                return sessionDate >= start && sessionDate <= end;
+              } else if (start) {
+                return sessionDate >= start;
+              } else if (end) {
+                return sessionDate <= end;
+              }
+
+              return true;
+            });
           }
 
-          const data = await response.json();
-          set({ classSessions: data.classes });
+          // Aplicar paginación
+          const startIndex = (page - 1) * limit;
+          const endIndex = startIndex + limit;
+          const paginatedClasses = filteredClasses.slice(startIndex, endIndex);
 
-          return data;
+          // Calcular metadatos de paginación
+          const totalClasses = filteredClasses.length;
+          const totalPages = Math.ceil(totalClasses / limit);
+
+          const result = {
+            classes: paginatedClasses,
+            pagination: {
+              page,
+              limit,
+              totalClasses,
+              totalPages,
+              hasNextPage: page < totalPages,
+              hasPrevPage: page > 1,
+            },
+          };
+
+          set({ classSessions: result.classes });
+          return result;
         } catch (error) {
           console.error("Error fetching class sessions:", error);
           // Fallback a datos locales en caso de error

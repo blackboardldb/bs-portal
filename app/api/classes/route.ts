@@ -67,13 +67,40 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const { prisma } = await import("@/lib/mock-database");
 
-    // In a real app, you would validate and save to database
-    const newClass = {
-      id: `cls_${Date.now()}`,
-      ...body,
-      createdAt: new Date().toISOString(),
-    };
+    // Crear la clase en el mock database con todos los campos requeridos
+    const newClass = await prisma.classSession.create({
+      data: {
+        id: body.id || `cls_${Date.now()}`,
+        organizationId: body.organizationId,
+        disciplineId: body.disciplineId,
+        name: body.name,
+        dateTime: body.dateTime,
+        durationMinutes: body.durationMinutes || 60,
+        instructorId: body.instructorId,
+        capacity: body.capacity || 15,
+        registeredParticipantsIds: body.registeredParticipantsIds || [],
+        waitlistParticipantsIds: body.waitlistParticipantsIds || [],
+        status: body.status || "scheduled",
+        notes: body.notes,
+        isGenerated: false,
+        // Campos adicionales requeridos por ClassSessionExtended
+        participants: {
+          confirmed: [],
+          waitlist: [],
+          noShows: [],
+        },
+        historicalData: {
+          averageAttendance: Math.floor(Math.random() * 10) + 5,
+          noShowRate: Math.random() * 0.3,
+          waitlistFrequency: Math.random() * 0.2,
+          popularityTrend: "stable" as const,
+        },
+        cancellationHours: 2,
+        occupancyRate: 0.5,
+      },
+    });
 
     return NextResponse.json(newClass, { status: 201 });
   } catch (error) {

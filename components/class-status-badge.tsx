@@ -9,15 +9,23 @@ interface ClassStatusBadgeProps {
 }
 
 export function ClassStatusBadge({ classItem }: ClassStatusBadgeProps) {
-  const now = new Date(); // Ensure 'now' is defined
-  // Solo mostrar estados específicos que fueron solicitados
+  const now = new Date();
+
+  // Estados específicos
   if (classItem.status === "cancelled") {
     return <Badge variant="destructive">Cancelada</Badge>;
   }
 
-  // Para clases completadas (si se implementa en el futuro)
   if (classItem.status === "completed") {
     return <Badge variant="outline">Finalizada</Badge>;
+  }
+
+  if (classItem.status === "in_progress") {
+    return (
+      <Badge variant="default" className="bg-green-600 text-white">
+        En curso
+      </Badge>
+    );
   }
 
   // Verificar si la clase ya finalizó (para clases scheduled)

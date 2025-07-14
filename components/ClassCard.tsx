@@ -36,10 +36,14 @@ export function ClassCard({ classItem, onRegister, onCancel }: ClassCardProps) {
 
   const isRegistered = classItem.isRegistered;
   const isCancelled = classItem.status === "cancelled";
-  const isFinished = false; // Se maneja dinámicamente en el componente ClassStatusBadge
+  const isCompleted = classItem.status === "completed";
+  const isInProgress = classItem.status === "in_progress";
   const classDateTime = parseISO(classItem.dateTime);
   const formattedTime = formatTimeLocal(classItem.dateTime);
   const isClassToday = isToday(classDateTime);
+
+  // Determinar si se puede realizar acción
+  const canPerformAction = !isCancelled && !isCompleted && !isInProgress;
 
   const handleAction = () => {
     if (isRegistered) {
@@ -111,7 +115,7 @@ export function ClassCard({ classItem, onRegister, onCancel }: ClassCardProps) {
           size="sm"
           onClick={handleAction}
           className="flex-1"
-          disabled={isCancelled || isFinished}
+          disabled={!canPerformAction}
         >
           {isRegistered ? "Cancelar" : "Inscribirse"}
         </Button>
