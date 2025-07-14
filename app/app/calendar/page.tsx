@@ -421,17 +421,6 @@ export default function CalendarPage() {
           onDateSelect={handleDateSelect}
           className=""
         />
-
-        {/* Información de resultados */}
-        <div className="flex items-center justify-between mt-4 mb-2">
-          <div className="text-sm text-gray-600">
-            {isLoading
-              ? "Cargando clases..."
-              : `Mostrando ${
-                  getClassesForDate(selectedDate).length
-                } clases para ${format(selectedDate, "dd/MM/yyyy")}`}
-          </div>
-        </div>
       </div>
 
       <div className="bg-black">

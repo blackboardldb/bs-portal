@@ -49,7 +49,7 @@ export default function ClassList({
         <div className="mb-3 text-gray-300">
           <span className="text-xs uppercase">{formatDate(selectedDate)}</span>
           <p className="text-base uppercase font-semibold">
-            Clases disponibles
+            {classes.length} Clases disponibles
           </p>
         </div>
 
@@ -87,7 +87,9 @@ export default function ClassList({
       {/* Header */}
       <div className="mb-3 text-gray-300">
         <span className="text-xs uppercase">{formatDate(selectedDate)}</span>
-        <p className="text-base uppercase font-semibold">Clases disponibles</p>
+        <p className="text-base uppercase font-semibold">
+          {sortedClasses.length} Clases disponibles
+        </p>
       </div>
 
       {/* Class list */}
