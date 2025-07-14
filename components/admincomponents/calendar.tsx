@@ -41,6 +41,9 @@ import {
   ChevronRight,
   X,
   AlertTriangle,
+  User,
+  Clock,
+  Users,
 } from "lucide-react";
 import {
   startOfMonth,
@@ -117,9 +120,6 @@ export function Calendar() {
   );
   const [showClassDetails, setShowClassDetails] = useState(false);
   const [selectedDiscipline, setSelectedDiscipline] = useState<string>("all"); // Nuevo estado para filtro de disciplina
-  const [showRegistrationModal, setShowRegistrationModal] = useState(false); // Nuevo estado para modal de inscripción
-  const [selectedClassForRegistration, setSelectedClassForRegistration] =
-    useState<TransformedClass | null>(null); // Clase seleccionada para inscripción
 
   // Estados para el formulario de clase extra
   const [extraClassForm, setExtraClassForm] = useState<ExtraClassFormData>({
@@ -409,52 +409,6 @@ export function Calendar() {
     setShowClassDetails(true);
   };
 
-  // CONTEXTO: Función para abrir modal de inscripción
-  const handleOpenRegistration = (cls: TransformedClass) => {
-    setSelectedClassForRegistration(cls);
-    setShowRegistrationModal(true);
-  };
-
-  // CONTEXTO: Función para registrar estudiante en una clase
-  const handleRegisterStudent = async (studentId: string) => {
-    if (!selectedClassForRegistration) return;
-
-    try {
-      const response = await fetch("/api/classes/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classId: selectedClassForRegistration.id,
-          studentId: studentId,
-        }),
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Estudiante Registrado",
-          description:
-            "El estudiante ha sido registrado exitosamente en la clase.",
-        });
-        setShowRegistrationModal(false);
-        setSelectedClassForRegistration(null);
-        // El hook se encargará de recargar automáticamente
-      } else {
-        const error = await response.json();
-        toast({
-          title: "Error al Registrar",
-          description: error.message || "Error al registrar el estudiante.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error al Registrar",
-        description: "Error inesperado al registrar el estudiante.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // CONTEXTO: Obtener clases para la fecha seleccionada
   const classesForSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
@@ -716,133 +670,135 @@ export function Calendar() {
         </div>
       </div>
 
-      {/* Sección de clases del día seleccionado */}
-      {selectedDate && (
-        <div className="mt-8">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold">
-              Clases para {formatDateForDisplay(selectedDate)}
-            </h3>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedDate(null)}
-              >
-                <X className="w-4 h-4 mr-2" />
-                Cerrar
-              </Button>
-              {classesForSelectedDate.length > 0 && (
+      {/* Modal de clases del día seleccionado */}
+      <Dialog
+        open={!!selectedDate}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDate(null);
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Clases para{" "}
+              {selectedDate ? formatDateForDisplay(selectedDate) : ""}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {classesForSelectedDate.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No hay clases programadas para este día.</p>
                 <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowCancelAllDialog(true)}
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => {
+                    setExtraClassForm({
+                      disciplineId: "",
+                      instructor: "",
+                      date: selectedDate || "",
+                      time: "",
+                      capacity: 15,
+                    });
+                    setIsAddingClass(true);
+                    setSelectedDate(null);
+                  }}
                 >
-                  Cancelar Todas
+                  <Plus className="w-4 h-4 mr-2" />
+                  Agregar Clase
                 </Button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-gray-600">
+                    {classesForSelectedDate.length} clase
+                    {classesForSelectedDate.length !== 1 ? "s" : ""} programada
+                    {classesForSelectedDate.length !== 1 ? "s" : ""}
+                  </p>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowCancelAllDialog(true)}
+                  >
+                    Cancelar Todas
+                  </Button>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {classesForSelectedDate.map((cls) => (
+                    <Card key={cls.id} className="relative">
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-semibold text-lg">
+                              {cls.name}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              {cls.instructor}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              cls.isGenerated
+                                ? "secondary"
+                                : cls.isExtra
+                                ? "default"
+                                : "outline"
+                            }
+                            className="text-xs"
+                          >
+                            {cls.isGenerated
+                              ? "Generada"
+                              : cls.isExtra
+                              ? "Extra"
+                              : "Regular"}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-2 mb-4 text-sm text-gray-600">
+                          {cls.instructor !== "Por asignar" && (
+                            <>
+                              <User className="w-4 h-4" />
+                              <span>{cls.instructor}</span>
+                            </>
+                          )}
+                          <Clock className="w-4 h-4" />
+                          <span>{cls.time}</span>
+                          <Clock className="w-4 h-4" />
+                          <span>{cls.duration}</span>
+                          <Users className="w-4 h-4" />
+                          <span>{cls.alumnRegistred}</span>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => {
+                              handleViewClassDetails(cls);
+                              setSelectedDate(null);
+                            }}
+                          >
+                            Ver Detalles
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCancelClass(cls.id)}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-
-          {classesForSelectedDate.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>No hay clases programadas para este día.</p>
-              <Button
-                variant="outline"
-                className="mt-2"
-                onClick={() => {
-                  setExtraClassForm({
-                    disciplineId: "",
-                    instructor: "",
-                    date: selectedDate,
-                    time: "",
-                    capacity: 15,
-                  });
-                  setIsAddingClass(true);
-                }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Agregar Clase
-              </Button>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {classesForSelectedDate.map((cls) => (
-                <Card key={cls.id} className="relative">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h4 className="font-semibold text-lg">{cls.name}</h4>
-                        <p className="text-sm text-gray-600">
-                          {cls.instructor}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={
-                          cls.isGenerated
-                            ? "secondary"
-                            : cls.isExtra
-                            ? "default"
-                            : "outline"
-                        }
-                        className="text-xs"
-                      >
-                        {cls.isGenerated
-                          ? "Generada"
-                          : cls.isExtra
-                          ? "Extra"
-                          : "Regular"}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Hora:</span>
-                        <span className="font-medium">{cls.time}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Duración:</span>
-                        <span className="font-medium">{cls.duration}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Inscritos:</span>
-                        <span className="font-medium">
-                          {cls.alumnRegistred}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => handleViewClassDetails(cls)}
-                      >
-                        Ver Detalles
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCancelClass(cls.id)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => handleOpenRegistration(cls)}
-                        disabled={cls.enrolled >= cls.capacity}
-                      >
-                        {cls.enrolled >= cls.capacity ? "Lleno" : "Inscribir"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog para cancelar todas las clases */}
       <AlertDialog
@@ -1006,71 +962,6 @@ export function Calendar() {
           onCancelClass={handleCancelClass}
         />
       )}
-
-      {/* Modal de inscripción de estudiantes */}
-      <Dialog
-        open={showRegistrationModal}
-        onOpenChange={setShowRegistrationModal}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Inscribir Estudiante</DialogTitle>
-          </DialogHeader>
-          {selectedClassForRegistration && (
-            <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-semibold text-lg">
-                  {selectedClassForRegistration.name}
-                </h4>
-                <p className="text-sm text-gray-600">
-                  {selectedClassForRegistration.instructor}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {selectedClassForRegistration.date} •{" "}
-                  {selectedClassForRegistration.time}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Inscritos: {selectedClassForRegistration.alumnRegistred}
-                </p>
-              </div>
-
-              <div>
-                <Label htmlFor="student-select">Seleccionar Estudiante</Label>
-                <Select onValueChange={handleRegisterStudent}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Buscar estudiante..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users
-                      .filter(
-                        (user) =>
-                          user.role === "user" &&
-                          user.membership.status === "active"
-                      )
-                      .map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.firstName} {user.lastName} - {user.email}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowRegistrationModal(false);
-                    setSelectedClassForRegistration(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
