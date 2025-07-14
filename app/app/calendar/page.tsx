@@ -329,7 +329,7 @@ export default function CalendarPage() {
         // Si es generada, crear la clase real usando la API
         const newRealClassData = {
           ...classToUpdate,
-          id: `cls_${Date.now()}`, // Nuevo ID real
+          id: `cls_${Date.now()}`,
           isGenerated: false,
           registeredParticipantsIds: [currentUser.id],
         };
@@ -348,13 +348,26 @@ export default function CalendarPage() {
         }
 
         const createdClass = await createResponse.json();
-        addClassSession(createdClass);
-
-        // Actualizar el selectedClass con el ID de la clase real
-        setSelectedClass({
-          ...selectedClass!,
-          id: createdClass.id,
-        });
+        // Recargar clases desde el mock database para asegurar sincronización
+        await fetchClassSessions();
+        // Buscar la clase recién creada en el store actualizado
+        const updatedClass = unifiedClasses.find(
+          (cls) =>
+            cls.dateTime === createdClass.dateTime &&
+            cls.disciplineId === createdClass.disciplineId &&
+            cls.instructorId === createdClass.instructorId
+        );
+        if (updatedClass) {
+          setSelectedClass({
+            ...selectedClass!,
+            id: updatedClass.id,
+          });
+        } else {
+          setSelectedClass({
+            ...selectedClass!,
+            id: createdClass.id,
+          });
+        }
       } else {
         // Si ya es real, usar la API de registro
         const response = await fetch(
@@ -386,7 +399,7 @@ export default function CalendarPage() {
         description: "Te has registrado exitosamente en la clase",
       });
 
-      closeRegistrationModal();
+      // No cerrar el modal automáticamente, dejar que el usuario lo cierre
     } catch (error) {
       console.error("Error registering for class:", error);
       toast({
@@ -443,7 +456,7 @@ export default function CalendarPage() {
         description: "Has cancelado tu registro exitosamente",
       });
 
-      closeCancellationModal();
+      // No cerrar el modal automáticamente, dejar que el usuario lo cierre
     } catch (error) {
       console.error("Error cancelling class:", error);
       toast({

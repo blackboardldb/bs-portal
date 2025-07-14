@@ -42,21 +42,26 @@ export default function RegistrationModal({
   onConfirm,
 }: RegistrationModalProps) {
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   if (!classItem || !isOpen) return null;
 
-  const handleConfirm = () => {
-    setIsConfirmed(true);
-    onConfirm();
-    // Cierra el modal y reinicia el estado después de un breve retraso
-    setTimeout(() => {
-      setIsConfirmed(false);
-      onClose();
-    }, 10000); // Muestra el mensaje por 10 segundos
+  const handleConfirm = async () => {
+    setIsProcessing(true);
+    try {
+      await onConfirm();
+      setIsConfirmed(true);
+    } catch (error) {
+      // Si hay error, mantener en estado de confirmación
+      console.error("Error en confirmación:", error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleClose = () => {
-    setIsConfirmed(false); // Siempre reinicia el estado de confirmación al cerrar
+    setIsConfirmed(false);
+    setIsProcessing(false);
     onClose();
   };
 
@@ -69,7 +74,6 @@ export default function RegistrationModal({
     <Drawer
       open={isOpen}
       onOpenChange={(newOpenState) => {
-        // Asegura que handleClose solo se llama al intentar cerrar
         if (!newOpenState) handleClose();
       }}
     >
@@ -144,7 +148,9 @@ export default function RegistrationModal({
         <DrawerFooter>
           {!isConfirmed ? (
             <>
-              <Button onClick={handleConfirm}>Confirmar reserva</Button>
+              <Button onClick={handleConfirm} disabled={isProcessing}>
+                {isProcessing ? "Procesando..." : "Confirmar reserva"}
+              </Button>
               <DrawerClose asChild>
                 <Button variant="outline">Cancelar</Button>
               </DrawerClose>

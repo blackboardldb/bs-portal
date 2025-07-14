@@ -43,21 +43,26 @@ export default function CancellationModal({
   onConfirm,
 }: CancellationModalProps) {
   const [isCancelled, setIsCancelled] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   if (!classItem || !isOpen) return null;
 
-  const handleConfirm = () => {
-    setIsCancelled(true);
-    onConfirm();
-    // Cierra el modal y reinicia el estado después de un breve retraso
-    setTimeout(() => {
-      setIsCancelled(false);
-      onClose();
-    }, 10000); // Muestra el mensaje por 10 segundos
+  const handleConfirm = async () => {
+    setIsProcessing(true);
+    try {
+      await onConfirm();
+      setIsCancelled(true);
+    } catch (error) {
+      // Si hay error, mantener en estado de confirmación
+      console.error("Error en cancelación:", error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleClose = () => {
-    setIsCancelled(false); // Siempre reinicia el estado de cancelación al cerrar
+    setIsCancelled(false);
+    setIsProcessing(false);
     onClose();
   };
 
@@ -70,7 +75,6 @@ export default function CancellationModal({
     <Drawer
       open={isOpen}
       onOpenChange={(newOpenState) => {
-        // Asegura que handleClose solo se llama al intentar cerrar
         if (!newOpenState) handleClose();
       }}
     >
@@ -148,8 +152,12 @@ export default function CancellationModal({
         <DrawerFooter>
           {!isCancelled ? (
             <>
-              <Button variant="destructive" onClick={handleConfirm}>
-                Cancelar esta clase
+              <Button
+                variant="destructive"
+                onClick={handleConfirm}
+                disabled={isProcessing}
+              >
+                {isProcessing ? "Procesando..." : "Cancelar esta clase"}
               </Button>
               <DrawerClose asChild>
                 <Button variant="outline">Conservar clase</Button>
