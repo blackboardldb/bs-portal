@@ -36,20 +36,65 @@ export default function Page() {
     fetchInstructors,
   ]);
 
-  // --- 2. SELECCIÓN DE USUARIO Y ESTADO DE CARGA ---
+  // --- 2. SELECCIÓN DE USUARIO Y TRANSFORMACIÓN DE DATOS ---
+  // Se utiliza el store de Zustand para acceder a los datos y funciones de carga.
   const currentUser = useMemo(() => {
     // Para la demo, se busca explícitamente a Antonia Ovejero por su ID correcto.
     return users.find((user) => user.id === "usr_antonia_abc123");
   }, [users]);
 
-  // Si no hay usuario (porque los datos aún no cargan), se muestra un esqueleto.
+  // Mover este hook aquí para cumplir con las Reglas de los Hooks.
+  // Se calcula aquí para que todos los hooks se llamen en cada render.
+  const registeredClasses = useMemo(() => {
+    // Si el usuario o las clases no se han cargado, devuelve un array vacío.
+    if (!currentUser || classSessions.length === 0) {
+      return [];
+    }
+
+    return classSessions
+      .filter((session) => {
+        const sessionDate = new Date(session.dateTime);
+        const now = new Date();
+        return (
+          sessionDate >= now &&
+          session.registeredParticipantsIds.includes(currentUser.id)
+        );
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
+      )
+      .slice(0, 3)
+      .map((session) => {
+        const instructor = instructors.find(
+          (inst) => inst.id === session.instructorId
+        );
+        const instructorName = instructor
+          ? `${instructor.firstName} ${instructor.lastName}`
+          : "Instructor";
+
+        return {
+          id: session.id,
+          dateTime: session.dateTime,
+          name: session.name,
+          instructor: instructorName,
+          duration: "60 min",
+          alumnRegistred: `${session.registeredParticipantsIds.length}/${
+            session.capacity || 15
+          }`,
+          isRegistered: session.registeredParticipantsIds.includes(
+            currentUser.id
+          ),
+          formattedDayLabel: formatWeekday(session.dateTime),
+          formattedTime: formatTimeLocal(session.dateTime),
+        };
+      });
+  }, [classSessions, instructors, currentUser]);
+
+  // Si los datos esenciales no están listos, no renderizar nada.
+  // Esto evita mostrar la UI incompleta o con errores y elimina el Skeleton.
   if (!currentUser) {
-    return (
-      <main className="min-h-screen bg-black p-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-96 w-full mt-4" />
-      </main>
-    );
+    return null;
   }
 
   // --- 3. TRANSFORMACIÓN DE DATOS PARA LA UI ---
@@ -84,49 +129,6 @@ export default function Page() {
         { locale: es }
       )
     : "31 de enero";
-
-  // Filtrar y mapear las próximas 3 clases a las que el usuario está inscrito.
-  const registeredClasses = useMemo(() => {
-    return classSessions
-      .filter((session) => {
-        const sessionDate = new Date(session.dateTime);
-        const now = new Date();
-        // Corregido: Filtrar por clases futuras Y a las que el usuario está inscrito
-        return (
-          sessionDate >= now &&
-          session.registeredParticipantsIds.includes(currentUser.id)
-        );
-      })
-      .sort(
-        (a, b) =>
-          new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
-      ) // <-- AÑADIDO: Ordenar por fecha para obtener las más próximas
-      .slice(0, 3)
-      .map((session) => {
-        const instructor = instructors.find(
-          (inst) => inst.id === session.instructorId
-        );
-        const instructorName = instructor
-          ? `${instructor.firstName} ${instructor.lastName}`
-          : "Instructor";
-
-        return {
-          id: session.id,
-          dateTime: session.dateTime,
-          name: session.name,
-          instructor: instructorName,
-          duration: "60 min",
-          alumnRegistred: `${session.registeredParticipantsIds.length}/${
-            session.capacity || 15
-          }`,
-          isRegistered: session.registeredParticipantsIds.includes(
-            currentUser.id
-          ),
-          formattedDayLabel: formatWeekday(session.dateTime),
-          formattedTime: formatTimeLocal(session.dateTime),
-        };
-      });
-  }, [classSessions, instructors, currentUser.id]);
 
   // --- 4. RENDERIZADO DEL COMPONENTE ---
   // Se renderiza la estructura de la página y se pasa la data procesada a HomePage.
