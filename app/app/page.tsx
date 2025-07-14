@@ -8,7 +8,7 @@ import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatTimeLocal, formatWeekday } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonHomePage } from "@/components/ui/skeleton";
 
 export default function Page() {
   // --- 1. OBTENCIÓN DE DATOS ---
@@ -94,7 +94,7 @@ export default function Page() {
   // Si los datos esenciales no están listos, no renderizar nada.
   // Esto evita mostrar la UI incompleta o con errores y elimina el Skeleton.
   if (!currentUser) {
-    return null;
+    return <SkeletonHomePage />;
   }
 
   // --- 3. TRANSFORMACIÓN DE DATOS PARA LA UI ---

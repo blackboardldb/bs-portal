@@ -18,7 +18,7 @@ import { Edit3, BarChart3, ChevronRight } from "lucide-react";
 import { StatsDrawer } from "./stats-drawer";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { FitCenterUserProfile, MembershipStatus } from "@/lib/types";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonUserProfile } from "@/components/ui/skeleton";
 import {
   MEMBERSHIP_STATUS_LABELS,
   MEMBERSHIP_STATUS_COLORS,
@@ -91,7 +91,7 @@ export function UserProfile() {
         lastName: editableLastName,
       };
       setUserData(updatedUser);
-      updateUser(userData.id, updatedUser);
+      updateUser(updatedUser);
       setExpandedSection(null);
     }
   };
@@ -105,7 +105,7 @@ export function UserProfile() {
         phone: editablePhone,
       };
       setUserData(updatedUser);
-      updateUser(userData.id, updatedUser);
+      updateUser(updatedUser);
       setExpandedSection(null);
     }
   };
@@ -119,7 +119,7 @@ export function UserProfile() {
         dateOfBirth: editableDateOfBirth,
       };
       setUserData(updatedUser);
-      updateUser(userData.id, updatedUser);
+      updateUser(updatedUser);
       setExpandedSection(null);
     }
   };
@@ -132,37 +132,25 @@ export function UserProfile() {
         emergencyContact: editableEmergencyContact,
       };
       setUserData(updatedUser);
-      updateUser(userData.id, updatedUser);
+      updateUser(updatedUser);
       setExpandedSection(null);
     }
   };
 
   // Helper for formatting join date from memberSince (ISO 8601 to readable string)
   const formatMemberSince = (isoDateString: string) => {
-    return new Date(isoDateString).toLocaleDateString("es-ES", {
-      month: "long",
-      year: "numeric",
-    });
+    return format(new Date(isoDateString), "MMMM yyyy", { locale: es });
   };
 
   // Helper for formatting date of birth (ISO 8601 to readable string)
   const formatDateOfBirth = (isoDateString?: string) => {
     if (!isoDateString) return "No especificado";
-    return new Date(isoDateString).toLocaleDateString("es-ES", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    return format(new Date(isoDateString), "d 'de' MMMM yyyy", { locale: es });
   };
 
   // Mostrar un esqueleto de carga mientras se obtienen los datos
   if (!currentUser || !userData) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-48 w-full rounded-lg" />
-        <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
-    );
+    return <SkeletonUserProfile />;
   }
 
   // Calculate estimated total hours from total classes (assuming 1 hour per class)
@@ -258,14 +246,12 @@ export function UserProfile() {
                   className="font-semibold"
                   style={{
                     color:
-                      MEMBERSHIP_STATUS_COLORS[
-                        userData.membership.status as MembershipStatus
-                      ] || "#fff",
+                      MEMBERSHIP_STATUS_COLORS[userData.membership.status] ||
+                      "#fff",
                   }}
                 >
-                  {MEMBERSHIP_STATUS_LABELS[
-                    userData.membership.status as MembershipStatus
-                  ] || "N/A"}
+                  {MEMBERSHIP_STATUS_LABELS[userData.membership.status] ||
+                    "N/A"}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -273,12 +259,14 @@ export function UserProfile() {
                 <span className="text-white">
                   {format(
                     new Date(userData.membership.currentPeriodStart),
-                    "dd/MM/yy"
+                    "dd/MM/yy",
+                    { locale: es }
                   )}{" "}
                   -{" "}
                   {format(
                     new Date(userData.membership.currentPeriodEnd),
-                    "dd/MM/yy"
+                    "dd/MM/yy",
+                    { locale: es }
                   )}
                 </span>
               </div>
