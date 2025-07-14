@@ -65,6 +65,7 @@ export default function CalendarPage() {
   );
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
   const [isCancellationModalOpen, setIsCancellationModalOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Obtener el usuario actual (emulando a Antonia)
   const currentUser = useMemo(
@@ -222,15 +223,22 @@ export default function CalendarPage() {
       });
     });
 
-    // FIX: Fusionar clases generadas y reales evitando duplicidad
+    // OPTIMIZACIÓN: Fusión eficiente de clases generadas y reales
     const classMap = new Map<string, ClassSession>();
+    const realClassKeys = new Set<string>();
 
-    // Primero agregar todas las clases reales
-    classSessions.forEach((cls) =>
-      classMap.set(cls.id, { ...cls, isGenerated: false })
-    );
+    // 1. Agregar todas las clases reales y guardar una clave única (disciplina + fecha/hora)
+    classSessions.forEach((realClass) => {
+      const realDateTime = new Date(realClass.dateTime);
+      const key = `${realClass.disciplineId}_${format(
+        realDateTime,
+        "yyyy-MM-dd_HH-mm"
+      )}`;
+      realClassKeys.add(key);
+      classMap.set(realClass.id, { ...realClass, isGenerated: false });
+    });
 
-    // Luego agregar solo las clases generadas que NO tienen una clase real equivalente
+    // 2. Agregar clases generadas solo si no existe una clase real para ese mismo horario
     generatedClasses.forEach((generatedClass) => {
       const classDateTime = new Date(generatedClass.dateTime);
       const classKey = `${generatedClass.disciplineId}_${format(
@@ -238,27 +246,13 @@ export default function CalendarPage() {
         "yyyy-MM-dd_HH-mm"
       )}`;
 
-      // Verificar si ya existe una clase real para este horario y disciplina
-      const hasRealClass = Array.from(classMap.values()).some((realClass) => {
-        if (realClass.isGenerated) return false; // Solo comparar con clases reales
-
-        const realDateTime = new Date(realClass.dateTime);
-        const realKey = `${realClass.disciplineId}_${format(
-          realDateTime,
-          "yyyy-MM-dd_HH-mm"
-        )}`;
-
-        return realKey === classKey;
-      });
-
-      // Solo agregar la clase generada si NO existe una clase real equivalente
-      if (!hasRealClass) {
+      if (!realClassKeys.has(classKey)) {
         classMap.set(generatedClass.id, generatedClass);
       }
     });
 
     return Array.from(classMap.values());
-  }, [disciplines, classSessions, today]);
+  }, [disciplines, classSessions, today, refreshTrigger]);
 
   // NOTA: Los estados se manejan dinámicamente en convertClassSessionToFormattedItem
   // para evitar bucles infinitos de actualización
@@ -323,94 +317,35 @@ export default function CalendarPage() {
     );
     if (!classToUpdate) return;
 
-    try {
-      // INTEGRACIÓN CON API REAL
-      if (classToUpdate.isGenerated) {
-        // Si es generada, crear la clase real usando la API
-        const newRealClassData = {
-          ...classToUpdate,
-          id: `cls_${Date.now()}`,
-          isGenerated: false,
-          registeredParticipantsIds: [currentUser.id],
-        };
-
-        const createResponse = await fetch("/api/classes", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(newRealClassData),
-        });
-
-        if (!createResponse.ok) {
-          const errorData = await createResponse.json();
-          throw new Error(errorData.error || "Error al crear la clase");
-        }
-
-        const createdClass = await createResponse.json();
-        // Recargar clases desde el mock database para asegurar sincronización
-        await fetchClassSessions();
-        // Buscar la clase recién creada en el store actualizado
-        const updatedClass = unifiedClasses.find(
-          (cls) =>
-            cls.dateTime === createdClass.dateTime &&
-            cls.disciplineId === createdClass.disciplineId &&
-            cls.instructorId === createdClass.instructorId
-        );
-        if (updatedClass) {
-          setSelectedClass({
-            ...selectedClass!,
-            id: updatedClass.id,
-          });
-        } else {
-          setSelectedClass({
-            ...selectedClass!,
-            id: createdClass.id,
-          });
-        }
-      } else {
-        // Si ya es real, usar la API de registro
-        const response = await fetch(
-          `/api/classes/${classToUpdate.id}/register`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userId: currentUser.id,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Error al registrar en la clase");
-        }
-
-        const result = await response.json();
-
-        // Actualizar el estado local con la respuesta de la API
-        updateClassSession(result.class);
-      }
-
-      toast({
-        title: "Registro exitoso",
-        description: "Te has registrado exitosamente en la clase",
-      });
-
-      // No cerrar el modal automáticamente, dejar que el usuario lo cierre
-    } catch (error) {
-      console.error("Error registering for class:", error);
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Error al registrar en la clase",
-        variant: "destructive",
+    // Lógica de Actualización Optimista
+    if (classToUpdate.isGenerated) {
+      // 1. Si es generada, la creamos como "real" en el store
+      const newRealClass: ClassSession = {
+        ...classToUpdate,
+        id: `cls_${Date.now()}`, // Nuevo ID real
+        isGenerated: false,
+        registeredParticipantsIds: [currentUser.id],
+      };
+      addClassSession(newRealClass);
+    } else {
+      // 2. Si ya es real, solo actualizamos los participantes
+      const updatedParticipants = [
+        ...classToUpdate.registeredParticipantsIds,
+        currentUser.id,
+      ];
+      updateClassSession({
+        ...classToUpdate,
+        registeredParticipantsIds: updatedParticipants,
       });
     }
+
+    toast({
+      title: "Registro exitoso",
+      description: "Te has registrado exitosamente en la clase",
+    });
+
+    // La UI se actualiza instantáneamente gracias a Zustand
+    // En una app real, aquí iría la llamada a la API en segundo plano
   };
 
   const confirmCancellation = async () => {
@@ -429,43 +364,23 @@ export default function CalendarPage() {
       return;
     }
 
-    try {
-      // INTEGRACIÓN CON API REAL
-      const response = await fetch(`/api/classes/${classToUpdate.id}/cancel`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId: currentUser.id,
-        }),
-      });
+    // Lógica de Actualización Optimista
+    const updatedParticipants = classToUpdate.registeredParticipantsIds.filter(
+      (id) => id !== currentUser.id
+    );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al cancelar la clase");
-      }
+    updateClassSession({
+      ...classToUpdate,
+      registeredParticipantsIds: updatedParticipants,
+    });
 
-      const result = await response.json();
+    toast({
+      title: "Cancelación exitosa",
+      description: "Has cancelado tu registro exitosamente",
+    });
 
-      // Actualizar el estado local con la respuesta de la API
-      updateClassSession(result.class);
-
-      toast({
-        title: "Cancelación exitosa",
-        description: "Has cancelado tu registro exitosamente",
-      });
-
-      // No cerrar el modal automáticamente, dejar que el usuario lo cierre
-    } catch (error) {
-      console.error("Error cancelling class:", error);
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Error al cancelar la clase",
-        variant: "destructive",
-      });
-    }
+    // La UI se actualiza instantáneamente gracias a Zustand
+    // En una app real, aquí iría la llamada a la API en segundo plano
   };
 
   const closeRegistrationModal = () => {
