@@ -1,9 +1,9 @@
 // src/components/Logo.tsx
 // Este es un Server Component (no tiene "use client")
 
-export default function Logo() {
+export default function Logo({ size }: { size?: number }) {
   return (
-    <svg width="150" viewBox="0 0 281.681 30.373">
+    <svg width={size ?? "150"} viewBox="0 0 281.681 30.373">
       <g id="Grupo_2" data-name="Grupo 2" transform="translate(-820 -525.543)">
         <g
           id="Grupo_1"
