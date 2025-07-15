@@ -112,6 +112,7 @@ export default function AuthCompletePage() {
       } else if (currentStep < totalSteps) {
         nextStep();
       } else {
+        // Dentro de handleContinue, en el else final:
         const newUser = {
           id: `usr_${formData.firstName.toLowerCase()}_${Date.now()}`,
           email: formData.email,
@@ -124,34 +125,48 @@ export default function AuthCompletePage() {
             id: `mem_${formData.firstName.toLowerCase()}_${Date.now()}`,
             organizationId: "org_fitcenter_001",
             organizationName: "BlackSheep CrossFit",
-            status: "pending" as const, // CRÍTICO: Los nuevos usuarios deben estar pendientes de aprobación
+            status: "pending" as const,
             membershipType: "Básico",
             planId: formData.selectedPlan,
             monthlyPrice: 35000,
+            startDate: new Date().toISOString().split("T")[0], // <-- Agregado
             currentPeriodStart: new Date().toISOString().split("T")[0],
             currentPeriodEnd: new Date(
               new Date().setMonth(new Date().getMonth() + 1)
             )
               .toISOString()
               .split("T")[0],
-            planConfiguration: {
-              maxClassesPerMonth: 8,
-              maxBookingsPerDay: 2,
-              cancellationHours: 2,
+            planConfig: {
+              classLimit: 8,
+              disciplineAccess: "all" as const,
+              allowedDisciplines: [], // Inicialmente, acceso a todas (se actualizará al activar membresía)
+
+              canFreeze: true,
+              freezeDurationDays: 7,
+              autoRenews: true,
             },
             centerStats: {
               currentMonth: {
-                classesContracted: 8,
                 classesAttended: 0,
-                classesCancelled: 0,
+                classesContracted: 8,
+                remainingClasses: 8,
+                noShows: 0,
+                lastMinuteCancellations: 0,
               },
-              totalClasses: 0,
-              totalHours: 0,
+              totalMonthsActive: 0,
+              memberSince: new Date().toISOString().split("T")[0],
+              lifetimeStats: {
+                totalClasses: 0,
+                totalNoShows: 0,
+                averageMonthlyAttendance: 0,
+                bestMonth: { month: "N/A", year: 0, count: 0 },
+              },
             },
             centerConfig: {
-              timezone: "America/Santiago",
-              currency: "CLP",
-              language: "es",
+              allowCancellation: true,
+              cancellationHours: 2,
+              maxBookingsPerDay: 2,
+              autoWaitlist: true,
             },
           },
         };
@@ -259,22 +274,28 @@ export default function AuthCompletePage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-black">
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg mt-8">
-        <div className="flex items-center mb-4">
+    <div className="min-h-screen flex flex-col items-center justify-start bg-black">
+      <div className="p-4 w-full sticky top-0 z-10 bg-black/10  backdrop-blur-md  px-4 py-3">
+        <div className="flex items-center justify-between mb-4">
           <button
             onClick={handleBackClick}
-            className="mr-2 p-2 rounded-full hover:bg-gray-100"
+            className="mr-2 p-2 rounded-full hover:bg-gray-800"
             disabled={isFirstStep}
             aria-label="Atrás"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5 text-white" />
           </button>
-          <Progress value={progressPercentage} className="flex-1" />
+          <span className="text-sm text-gray-400">
+            Paso {currentStep} de {totalSteps}
+          </span>
         </div>
-        {error && (
-          <div className="mb-4 text-red-600 text-sm font-medium">{error}</div>
-        )}
+        <Progress value={progressPercentage} className="flex-1" />
+      </div>
+
+      {error && (
+        <div className="mb-4 text-red-600 text-sm font-medium">{error}</div>
+      )}
+      <div className=" max-w-md w-full mx-auto mt-6 pb-6 flex-1">
         {renderCurrentStep()}
       </div>
     </div>

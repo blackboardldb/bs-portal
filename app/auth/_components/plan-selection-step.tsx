@@ -27,6 +27,8 @@ export function PlanSelectionStep({
 
   return (
     <div className="space-y-4">
+      <p className="text-2xl text-center text-white mb-4">Selecciona tu plan</p>
+
       <div className="grid gap-4">
         {initialMembershipPlans.map((plan) => {
           const price = plan.price;
