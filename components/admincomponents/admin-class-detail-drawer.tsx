@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -52,6 +52,31 @@ export default function AdminClassDetailDrawer({
   // Estado local para la clase actualizada
   const [currentClassItem, setCurrentClassItem] = useState(classItem);
 
+  // Optimizar búsqueda con useMemo para evitar re-cálculos innecesarios
+  const availableUsers = useMemo(() => {
+    if (!users || !currentClassItem) return [];
+
+    return users.filter((user: FitCenterUserProfile) => {
+      const isEnrolled = currentClassItem.registeredParticipantsIds?.includes(
+        user.id
+      );
+      const isInWaitlist = currentClassItem.waitlistParticipantsIds?.includes(
+        user.id
+      );
+
+      // Solo filtrar por búsqueda si hay término de búsqueda
+      if (searchTerm.trim()) {
+        const matchesSearch =
+          user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchTerm.toLowerCase());
+        return !isEnrolled && !isInWaitlist && matchesSearch;
+      }
+
+      return !isEnrolled && !isInWaitlist;
+    });
+  }, [users, currentClassItem, searchTerm]);
+
   // Inicializar notas cuando se abre el drawer
   useEffect(() => {
     if (classItem && classItem.notes) {
@@ -74,7 +99,7 @@ export default function AdminClassDetailDrawer({
   const formattedTime = formatTimeLocal(currentClassItem.dateTime);
 
   // CONTEXTO: Buscar la disciplina y su regla de cancelación aplicable
-  const discipline = disciplines.find(
+  const discipline = disciplines?.find(
     (d) => d.id === currentClassItem.disciplineId
   );
   const applicableCancellationRule = discipline?.cancellationRules?.find(
@@ -85,58 +110,15 @@ export default function AdminClassDetailDrawer({
     }
   );
 
-  const enrolledStudents = users.filter((user: FitCenterUserProfile) =>
-    currentClassItem.registeredParticipantsIds?.includes(user.id)
-  );
+  const enrolledStudents =
+    users?.filter((user: FitCenterUserProfile) =>
+      currentClassItem.registeredParticipantsIds?.includes(user.id)
+    ) || [];
 
-  const waitlistStudents = users.filter((user: FitCenterUserProfile) =>
-    currentClassItem.waitlistParticipantsIds?.includes(user.id)
-  );
-
-  // Filtrar usuarios para agregar (excluir los ya inscritos)
-  const availableUsers = users.filter((user: FitCenterUserProfile) => {
-    const isEnrolled = currentClassItem.registeredParticipantsIds?.includes(
-      user.id
-    );
-    const isInWaitlist = currentClassItem.waitlistParticipantsIds?.includes(
-      user.id
-    );
-    const matchesSearch =
-      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return !isEnrolled && !isInWaitlist && matchesSearch;
-  });
-
-  console.log("🔍 Usuarios disponibles para agregar:", availableUsers.length);
-  console.log(
-    "📋 Lista de usuarios disponibles:",
-    availableUsers.map((u) => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName}`,
-    }))
-  );
-
-  const handleCancelClass = async () => {
-    if (!onCancelClass) return;
-
-    setIsLoading(true);
-    try {
-      await onCancelClass(currentClassItem.id);
-
-      // Actualizar el estado local de la clase
-      setCurrentClassItem((prev) =>
-        prev ? { ...prev, status: "cancelled" } : null
-      );
-
-      onClose();
-    } catch (error) {
-      console.error("Error canceling class:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const waitlistStudents =
+    users?.filter((user: FitCenterUserProfile) =>
+      currentClassItem.waitlistParticipantsIds?.includes(user.id)
+    ) || [];
 
   const handleSaveNotes = async () => {
     setIsSavingNotes(true);
@@ -178,16 +160,9 @@ export default function AdminClassDetailDrawer({
 
     setIsAddingStudent(true);
     try {
-      console.log("=== INICIO: Agregar Estudiante ===");
-      console.log("Estudiante ID:", userId);
-      console.log("Clase ID:", currentClassItem.id);
-      console.log("Clase completa:", currentClassItem);
-
       // Si es una clase generada dinámicamente, primero crearla en la base de datos
       let classId = currentClassItem.id;
       if (currentClassItem.id.startsWith("gen_")) {
-        console.log("🔄 Clase generada detectada, creando clase real...");
-
         const createPayload = {
           startDate: currentClassItem.dateTime.split("T")[0],
           endDate: currentClassItem.dateTime.split("T")[0],
@@ -197,63 +172,34 @@ export default function AdminClassDetailDrawer({
           maxCapacity: currentClassItem.capacity || 15,
         };
 
-        console.log("📤 Payload para crear clase:", createPayload);
-        console.log("📤 DisciplineId:", currentClassItem.disciplineId);
-        console.log("📤 DateTime original:", currentClassItem.dateTime);
-
         const createResponse = await fetch("/api/classes/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(createPayload),
         });
 
-        console.log(
-          "📥 Respuesta crear clase:",
-          createResponse.status,
-          createResponse.statusText
-        );
-
         if (createResponse.ok) {
           const createResult = await createResponse.json();
-          console.log("✅ Clase creada exitosamente:", createResult);
           classId = createResult.classes[0].id;
-          console.log("🆔 Nuevo ID de clase:", classId);
         } else {
           const errorData = await createResponse.json();
-          console.error("❌ Error al crear clase:", errorData);
-          alert(
-            `Error al crear clase: ${errorData.error || "Error desconocido"}`
-          );
+          toast({
+            title: "Error al crear clase",
+            description: errorData.error || "Error desconocido",
+            variant: "destructive",
+          });
           return;
         }
-      } else {
-        console.log("✅ Clase ya es real, usando ID existente");
       }
 
       // Llamada a la API para agregar estudiante
-      console.log("📤 Agregando estudiante a clase:", classId);
-      console.log(
-        "📤 URL de la API:",
-        `/api/classes/${classId}/admin/register`
-      );
-
       const response = await fetch(`/api/classes/${classId}/admin/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId }),
       });
 
-      console.log(
-        "📥 Respuesta agregar estudiante:",
-        response.status,
-        response.statusText
-      );
-      console.log("📥 URL completa:", response.url);
-
       if (response.ok) {
-        const result = await response.json();
-        console.log("✅ Estudiante agregado exitosamente:", result);
-
         // Actualizar el estado local para reflejar el cambio inmediatamente
         const updatedClassItem = {
           ...currentClassItem,
@@ -262,9 +208,11 @@ export default function AdminClassDetailDrawer({
             ...(currentClassItem.registeredParticipantsIds || []),
             userId,
           ],
+          enrolled: (currentClassItem.enrolled || 0) + 1,
+          alumnRegistred: `${(currentClassItem.enrolled || 0) + 1}/${
+            currentClassItem.capacity || 15
+          }`,
         };
-
-        console.log("🔄 Clase actualizada localmente:", updatedClassItem);
 
         // Actualizar el estado local
         setCurrentClassItem(updatedClassItem);
@@ -273,35 +221,82 @@ export default function AdminClassDetailDrawer({
         setSearchTerm("");
 
         // Mostrar toast de éxito
-        const addedUser = users.find((u) => u.id === userId);
+        const addedUser = users?.find((u) => u.id === userId);
         toast({
           title: "Alumno agregado",
           description: `${addedUser?.firstName} ${addedUser?.lastName} ha sido agregado a la clase`,
         });
-
-        console.log("=== FIN: Estudiante agregado exitosamente ===");
       } else {
         const errorData = await response.json();
-        console.error("❌ Error al agregar estudiante:", errorData);
-        console.error("❌ Status:", response.status);
-        console.error("❌ StatusText:", response.statusText);
-        console.error(
-          "❌ Headers:",
-          Object.fromEntries(response.headers.entries())
-        );
-
         toast({
           title: "Error al agregar alumno",
           description:
-            errorData.error ||
-            errorData.message ||
-            JSON.stringify(errorData) ||
-            "Error desconocido",
+            errorData.error || errorData.message || "Error desconocido",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error("💥 Error inesperado:", error);
+      toast({
+        title: "Error inesperado",
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingStudent(false);
+    }
+  };
+
+  const handleRemoveStudent = async (userId: string) => {
+    if (isAddingStudent) return; // Reutilizar el estado para evitar operaciones simultáneas
+
+    setIsAddingStudent(true);
+    try {
+      // Llamada a la API para remover estudiante
+      const response = await fetch(
+        `/api/classes/${currentClassItem.id}/cancel`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId }),
+        }
+      );
+
+      if (response.ok) {
+        // Actualizar el estado local para reflejar el cambio inmediatamente
+        const updatedRegisteredIds = (
+          currentClassItem.registeredParticipantsIds || []
+        ).filter((id) => id !== userId);
+
+        const updatedClassItem = {
+          ...currentClassItem,
+          registeredParticipantsIds: updatedRegisteredIds,
+          enrolled: Math.max(0, (currentClassItem.enrolled || 0) - 1),
+          alumnRegistred: `${Math.max(
+            0,
+            (currentClassItem.enrolled || 0) - 1
+          )}/${currentClassItem.capacity || 15}`,
+        };
+
+        // Actualizar el estado local
+        setCurrentClassItem(updatedClassItem);
+
+        // Mostrar toast de éxito
+        const removedUser = users?.find((u) => u.id === userId);
+        toast({
+          title: "Alumno removido",
+          description: `${removedUser?.firstName} ${removedUser?.lastName} ha sido removido de la clase`,
+        });
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error al remover alumno",
+          description:
+            errorData.error || errorData.message || "Error desconocido",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
       toast({
         title: "Error inesperado",
         description:
@@ -358,7 +353,7 @@ export default function AdminClassDetailDrawer({
                           key={student.id}
                           className="flex items-center justify-between p-3 border rounded-lg"
                         >
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium">
                               {student.firstName} {student.lastName}
                             </p>
@@ -366,9 +361,24 @@ export default function AdminClassDetailDrawer({
                               {student.email}
                             </p>
                           </div>
-                          <Badge variant="outline">
-                            {student.membership?.status || "Sin estado"}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">
+                              {student.membership?.status || "Sin estado"}
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRemoveStudent(student.id)}
+                              disabled={isAddingStudent}
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              {isAddingStudent ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                "×"
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -499,37 +509,19 @@ export default function AdminClassDetailDrawer({
                 </TabsContent>
               </Tabs>
 
-              {/* Política de cancelación */}
-              {(applicableCancellationRule || discipline) && (
+              {/* Información de la disciplina */}
+              {discipline && (
                 <div className="border border-zinc-300 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium">Política de Cancelación</h3>
-                    {currentClassItem.status !== "cancelled" &&
-                      !isClassPast(currentClassItem.dateTime) && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={handleCancelClass}
-                          disabled={isLoading}
-                        >
-                          {isLoading ? "Cancelando..." : "Cancelar Clase"}
-                        </Button>
-                      )}
-                  </div>
-                  {applicableCancellationRule ? (
-                    <p className="text-sm text-muted-foreground">
-                      Se puede cancelar hasta{" "}
-                      {applicableCancellationRule.hoursBefore} horas antes de la
-                      clase
-                      {applicableCancellationRule.description && (
-                        <span className="block mt-1 text-xs text-blue-600">
-                          💡 {applicableCancellationRule.description}
-                        </span>
-                      )}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Política general de la disciplina aplica
+                  <h3 className="font-medium mb-2">
+                    Información de la Disciplina
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {discipline.description}
+                  </p>
+                  {applicableCancellationRule && (
+                    <p className="text-xs text-blue-600 mt-2">
+                      💡 Política de cancelación: Se puede cancelar hasta{" "}
+                      {applicableCancellationRule.hoursBefore} horas antes
                     </p>
                   )}
                 </div>

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { Discipline, DayOfWeek, CancellationRule } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -47,8 +48,16 @@ const emptyDiscipline: Discipline = {
 };
 
 export default function DisciplinesManager() {
-  const { disciplines, addDiscipline, updateDiscipline, deleteDiscipline } =
-    useBlackSheepStore();
+  const {
+    disciplines,
+    addDiscipline,
+    updateDiscipline,
+    deleteDiscipline,
+    createDiscipline,
+    updateDisciplineById,
+  } = useBlackSheepStore();
+
+  const { toast } = useToast();
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<Discipline>(emptyDiscipline);
   const [showModal, setShowModal] = useState(false);
@@ -128,7 +137,7 @@ export default function DisciplinesManager() {
   };
 
   // --- Guardar/Editar/Eliminar ---
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name) return;
 
     // Filtrar horarios solo para días seleccionados
@@ -142,9 +151,35 @@ export default function DisciplinesManager() {
     };
 
     if (editing) {
-      updateDiscipline({ ...disciplineData, id: editing });
+      // Actualizar disciplina existente
+      const result = await updateDisciplineById(editing, disciplineData);
+      if (result) {
+        toast({
+          title: "Disciplina actualizada",
+          description: "La disciplina se ha actualizado correctamente",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al actualizar la disciplina",
+          variant: "destructive",
+        });
+      }
     } else {
-      addDiscipline({ ...disciplineData, id: `disc_${Date.now()}` });
+      // Crear nueva disciplina
+      const result = await createDiscipline(disciplineData);
+      if (result) {
+        toast({
+          title: "Disciplina agregada",
+          description: "La disciplina se ha agregado correctamente",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al agregar la disciplina",
+          variant: "destructive",
+        });
+      }
     }
 
     handleCloseModal();
@@ -424,7 +459,7 @@ export default function DisciplinesManager() {
 
       {/* Listado de disciplinas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {disciplines.length === 0 ? (
+        {!disciplines || disciplines.length === 0 ? (
           <Card className="md:col-span-2 lg:col-span-3">
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -439,7 +474,7 @@ export default function DisciplinesManager() {
             </CardContent>
           </Card>
         ) : (
-          disciplines.map((d) => (
+          disciplines?.map((d) => (
             <Card key={d.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">

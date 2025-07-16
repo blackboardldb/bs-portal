@@ -34,6 +34,7 @@ import { Plus, Edit, Trash2, Search } from "lucide-react";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { Instructor } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
 
 export function InstructorsManager() {
   const {
@@ -45,7 +46,11 @@ export function InstructorsManager() {
     fetchDisciplines,
     fetchInstructors,
     instructorsPagination,
+    createInstructor,
+    updateInstructorById,
   } = useBlackSheepStore();
+
+  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -90,30 +95,42 @@ export function InstructorsManager() {
     setPage(1);
   }, [searchTerm, roleFilter, activeFilter]);
 
-  const handleSaveInstructor = (instructorData: Partial<Instructor>) => {
+  const handleSaveInstructor = async (instructorData: Partial<Instructor>) => {
     if (editingInstructor) {
-      // Para actualizar, necesitamos un objeto Instructor completo
-      const updatedInstructor: Instructor = {
-        ...editingInstructor,
-        ...instructorData,
-      };
-      updateInstructor(updatedInstructor);
-      setEditingInstructor(null);
+      // Actualizar instructor existente
+      const result = await updateInstructorById(
+        editingInstructor.id,
+        instructorData
+      );
+      if (result) {
+        toast({
+          title: "Instructor actualizado",
+          description: "El instructor se ha actualizado correctamente",
+        });
+        setEditingInstructor(null);
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al actualizar el instructor",
+          variant: "destructive",
+        });
+      }
     } else {
-      // Para agregar, necesitamos un objeto Instructor completo
-      const newInstructor: Instructor = {
-        id: `inst_${Date.now()}`, // Generar ID único
-        organizationId: "org_blacksheep_001",
-        firstName: instructorData.firstName || "",
-        lastName: instructorData.lastName || "",
-        email: instructorData.email || "",
-        phone: instructorData.phone || "",
-        specialties: instructorData.specialties || [],
-        isActive: instructorData.isActive ?? true,
-        role: instructorData.role || "coach",
-      };
-      addInstructor(newInstructor);
-      setIsAddingInstructor(false);
+      // Crear nuevo instructor
+      const result = await createInstructor(instructorData);
+      if (result) {
+        toast({
+          title: "Instructor agregado",
+          description: "El instructor se ha agregado correctamente",
+        });
+        setIsAddingInstructor(false);
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al agregar el instructor",
+          variant: "destructive",
+        });
+      }
     }
 
     // Refrescar la lista después de agregar/editar
@@ -489,7 +506,7 @@ export function InstructorsManager() {
                   </TableCell>
                 </TableRow>
               ) : (
-                instructors.map((instructor: Instructor) => (
+                instructors?.map((instructor: Instructor) => (
                   <TableRow key={instructor.id}>
                     <TableCell className="font-medium">
                       {instructor.firstName} {instructor.lastName}

@@ -153,10 +153,10 @@ export function Calendar() {
   // Cargar datos básicos al montar
   useEffect(() => {
     fetchUsers();
-    if (disciplines.length === 0) {
+    if (!disciplines || disciplines.length === 0) {
       fetchDisciplines();
     }
-  }, [fetchUsers, fetchDisciplines, disciplines.length]);
+  }, [fetchUsers, fetchDisciplines, disciplines?.length]);
 
   // CONTEXTO: Función helper para formatear fechas sin problemas de zona horaria
   const formatDateForDisplay = (dateString: string) => {
@@ -185,7 +185,9 @@ export function Calendar() {
           return true;
         })
         .map((cls: any): TransformedClass => {
-          const discipline = disciplines.find((d) => d.id === cls.disciplineId);
+          const discipline = disciplines?.find(
+            (d) => d.id === cls.disciplineId
+          );
           const instructor = users.find((u) => u.id === cls.instructorId);
           const instructorName = instructor
             ? `${instructor.firstName} ${instructor.lastName}`
@@ -534,12 +536,12 @@ export function Calendar() {
               <SelectContent>
                 <SelectItem value="all">Todas las disciplinas</SelectItem>
                 {disciplines
-                  .filter((d) => d.isActive)
+                  ?.filter((d) => d.isActive)
                   .map((discipline) => (
                     <SelectItem key={discipline.id} value={discipline.id}>
                       {discipline.name}
                     </SelectItem>
-                  ))}
+                  )) || []}
               </SelectContent>
             </Select>
           </div>
@@ -787,12 +789,12 @@ export function Calendar() {
                 </SelectTrigger>
                 <SelectContent>
                   {disciplines
-                    .filter((d) => d.isActive)
+                    ?.filter((d) => d.isActive)
                     .map((discipline) => (
                       <SelectItem key={discipline.id} value={discipline.id}>
                         {discipline.name}
                       </SelectItem>
-                    ))}
+                    )) || []}
                 </SelectContent>
               </Select>
             </div>

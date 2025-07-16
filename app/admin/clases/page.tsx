@@ -67,7 +67,9 @@ export default function AdminClasesPage() {
   // y formatea más datos para que el ClassListItem sea completo y funcional con el drawer.
   const convertClassSessionToClassItem = useCallback(
     (session: ClassSession): ClassListItem => {
-      const discipline = disciplines.find((d) => d.id === session.disciplineId);
+      const discipline = disciplines?.find(
+        (d) => d.id === session.disciplineId
+      );
       const instructor = users.find((u) => u.id === session.instructorId);
       const enrolled = session.registeredParticipantsIds.length;
 
@@ -171,7 +173,7 @@ export default function AdminClasesPage() {
       // Cargar datos básicos
       await fetchClassSessions();
       await fetchUsers();
-      if (disciplines.length === 0) {
+      if (!disciplines || disciplines.length === 0) {
         await fetchDisciplines();
       }
     } catch (error) {
@@ -188,7 +190,7 @@ export default function AdminClasesPage() {
     fetchClassSessions,
     fetchUsers,
     fetchDisciplines,
-    disciplines.length,
+    disciplines?.length,
     toast,
   ]);
 
@@ -217,7 +219,7 @@ export default function AdminClasesPage() {
       });
     } else {
       // Generar clases para el mes actual o futuro
-      if (disciplines.length > 0) {
+      if (disciplines && disciplines.length > 0) {
         generateClassesForMonth(selectedDate, disciplines);
         setIsGeneratingClasses(false);
       }

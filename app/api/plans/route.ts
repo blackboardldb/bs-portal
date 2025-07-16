@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/mock-database";
+import { PlanService } from "@/lib/services/plan-service";
+import { ErrorHandler } from "@/lib/errors/handler";
+
+// Initialize services
+const planService = new PlanService();
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-
-    // Parámetros de paginación
+    // Get query parameters
+    const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-
-    // Parámetros de filtrado
     const search = searchParams.get("search") || "";
     const isActive = searchParams.get("isActive");
 
-    // Validar parámetros
+    // Validate parameters
     if (page < 1 || limit < 1 || limit > 100) {
       return NextResponse.json(
         { error: "Invalid pagination parameters" },
@@ -21,104 +22,72 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Construir where clause
-    const whereClause: any = {};
-    if (isActive && isActive !== "todos") {
-      whereClause.isActive = isActive === "true";
-    }
-    if (search) {
-      whereClause.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-      ];
-    }
-
-    // Obtener planes con filtros y paginación
-    const plans = await prisma.membershipPlan.findMany({
-      where: whereClause,
-      take: limit,
-      skip: (page - 1) * limit,
-      orderBy: { name: "asc" },
-    });
-
-    // Obtener total de planes para paginación
-    const total = await prisma.membershipPlan.count({ where: whereClause });
-
-    // Calcular metadatos de paginación
-    const totalPages = Math.ceil(total / limit);
-
-    const pagination = {
+    // Use PlanService to get plans with filters
+    const response = await planService.getPlans({
       page,
       limit,
-      total,
-      totalPages,
-    };
-
-    return NextResponse.json({
-      plans,
-      pagination,
+      search: search || undefined,
+      isActive:
+        isActive && isActive !== "todos" ? isActive === "true" : undefined,
     });
+
+    // Return standardized response
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Error fetching plans:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "getPlans",
+      resource: "plans",
+    });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const planData = await request.json();
+    const body = await request.json();
 
-    // Validate required fields
-    if (!planData.name || !planData.price) {
-      return NextResponse.json(
-        { error: "name and price are required" },
-        { status: 400 }
-      );
-    }
+    // Use PlanService to create plan with validation
+    const response = await planService.createPlan(body);
 
-    // Create plan
-    const newPlan = await prisma.membershipPlan.create({
-      data: planData,
+    // Return standardized response
+    return NextResponse.json(response, {
+      status: response.success ? 201 : 400,
     });
-
-    return NextResponse.json(newPlan, { status: 201 });
   } catch (error) {
-    console.error("Error creating plan:", error);
-    return NextResponse.json(
-      { error: "Failed to create plan" },
-      { status: 500 }
-    );
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "createPlan",
+      resource: "plans",
+    });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const planData = await request.json();
+    const body = await request.json();
+    const { id, ...updateData } = body;
 
-    // Validate required fields
-    if (!planData.id || !planData.name || !planData.price) {
-      return NextResponse.json(
-        { error: "id, name and price are required" },
-        { status: 400 }
-      );
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    // Update plan
-    const updatedPlan = await prisma.membershipPlan.update({
-      where: { id: planData.id },
-      data: planData,
-    });
+    // Use PlanService to update plan with validation
+    const response = await planService.updatePlan(id, updateData);
 
-    return NextResponse.json(updatedPlan);
+    // Return standardized response
+    return NextResponse.json(response, {
+      status: response.success
+        ? 200
+        : response.error?.code === "NOT_FOUND"
+        ? 404
+        : 400,
+    });
   } catch (error) {
-    console.error("Error updating plan:", error);
-    return NextResponse.json(
-      { error: "Failed to update plan" },
-      { status: 500 }
-    );
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "updatePlan",
+      resource: "plans",
+    });
   }
 }
 
@@ -131,17 +100,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    // Delete plan
-    await prisma.membershipPlan.delete({
-      where: { id },
-    });
+    // Use PlanService to delete plan with validation
+    const response = await planService.deletePlan(id);
 
-    return NextResponse.json({ success: true });
+    // Return standardized response
+    return NextResponse.json(response, {
+      status: response.success
+        ? 200
+        : response.error?.code === "NOT_FOUND"
+        ? 404
+        : 400,
+    });
   } catch (error) {
-    console.error("Error deleting plan:", error);
-    return NextResponse.json(
-      { error: "Failed to delete plan" },
-      { status: 500 }
-    );
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "deletePlan",
+      resource: "plans",
+      metadata: { id },
+    });
   }
 }

@@ -92,7 +92,7 @@ export function Alerts() {
     }
 
     // Alertas de usuarios con membresías próximas a vencer
-    const expiringUsers = users.filter((user) => {
+    const expiringUsers = users?.filter((user) => {
       if (!user.membership?.currentPeriodEnd) return false;
       const endDate = new Date(user.membership.currentPeriodEnd);
       const daysUntilExpiry = Math.ceil(
@@ -146,9 +146,8 @@ export function Alerts() {
     }
 
     // Alertas de usuarios pendientes de aprobación
-    const pendingUsers = users.filter(
-      (user) => user.membership?.status === "pending"
-    );
+    const pendingUsers =
+      users?.filter((user) => user.membership?.status === "pending") || [];
     if (pendingUsers.length > 0) {
       newAlerts.push({
         id: "pending-users",

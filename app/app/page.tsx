@@ -24,9 +24,9 @@ export default function Page() {
 
   // Efecto para cargar los datos maestros una sola vez si el store está vacío.
   useEffect(() => {
-    if (users.length === 0) fetchUsers();
-    if (classSessions.length === 0) fetchClassSessions();
-    if (instructors.length === 0) fetchInstructors();
+    if (!users || users.length === 0) fetchUsers();
+    if (!classSessions || classSessions.length === 0) fetchClassSessions();
+    if (!instructors || instructors.length === 0) fetchInstructors();
   }, [
     users,
     classSessions,
@@ -47,7 +47,7 @@ export default function Page() {
   // Se calcula aquí para que todos los hooks se llamen en cada render.
   const registeredClasses = useMemo(() => {
     // Si el usuario o las clases no se han cargado, devuelve un array vacío.
-    if (!currentUser || classSessions.length === 0) {
+    if (!currentUser || !classSessions || classSessions.length === 0) {
       return [];
     }
 
@@ -66,7 +66,7 @@ export default function Page() {
       )
       .slice(0, 3)
       .map((session) => {
-        const instructor = instructors.find(
+        const instructor = instructors?.find(
           (inst) => inst.id === session.instructorId
         );
         const instructorName = instructor

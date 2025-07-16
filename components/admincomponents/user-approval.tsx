@@ -57,7 +57,7 @@ interface PendingUser extends FitCenterUserProfile {
 }
 
 export function UserApproval() {
-  const { updateUser } = useBlackSheepStore();
+  const { updateUser, updateUserById } = useBlackSheepStore();
   const pendingUsers = usePendingUsers();
   const userStats = useUserStats();
   const { toast } = useToast();
@@ -133,7 +133,7 @@ export function UserApproval() {
   };
 
   // Función para aprobar usuario
-  const handleApproveUser = (user: PendingUser) => {
+  const handleApproveUser = async (user: PendingUser) => {
     if (!user || !user.id) {
       toast({
         title: "Error",
@@ -143,37 +143,40 @@ export function UserApproval() {
       return;
     }
 
-    const existingUser = pendingUsers?.find((u) => u.id === user.id);
-    if (existingUser) {
-      const updatedUser = {
-        ...existingUser,
-        membership: {
-          ...existingUser.membership,
-          status: "active" as const,
-          currentPeriodStart: new Date().toISOString().split("T")[0],
-          currentPeriodEnd: calcularFechaTerminoMembresia(
-            new Date().toISOString().split("T")[0],
-            1 // Default to monthly plans
-          ),
-        },
-        notes:
-          ((existingUser as unknown as any)?.notes ?? "") +
-          " - Approved on " +
-          new Date().toLocaleDateString(),
-      };
-      updateUser(updatedUser);
+    const updatedUserData = {
+      membership: {
+        ...user.membership,
+        status: "active" as const,
+        currentPeriodStart: new Date().toISOString().split("T")[0],
+        currentPeriodEnd: calcularFechaTerminoMembresia(
+          new Date().toISOString().split("T")[0],
+          1 // Default to monthly plans
+        ),
+      },
+      notes:
+        ((user as unknown as any)?.notes ?? "") +
+        " - Approved on " +
+        new Date().toLocaleDateString(),
+    };
 
+    const result = await updateUserById(user.id, updatedUserData);
+    if (result) {
       toast({
-        title: "User approved",
-        description: `${user.firstName} ${user.lastName} has been successfully approved.`,
+        title: "Usuario aprobado",
+        description: `${user.firstName} ${user.lastName} ha sido aprobado exitosamente.`,
+      });
+      setShowDetails(false);
+    } else {
+      toast({
+        title: "Error",
+        description: "Error al aprobar el usuario",
+        variant: "destructive",
       });
     }
-
-    setShowDetails(false);
   };
 
   // Función para rechazar usuario
-  const handleRejectUser = (user: PendingUser) => {
+  const handleRejectUser = async (user: PendingUser) => {
     if (!user || !user.id) {
       toast({
         title: "Error",
@@ -183,38 +186,42 @@ export function UserApproval() {
       return;
     }
 
-    const existingUser = pendingUsers?.find((u) => u.id === user.id);
-    if (existingUser) {
-      const updatedUser = {
-        ...existingUser,
-        membership: {
-          ...existingUser.membership,
-          status: "inactive" as const,
-        },
-        notes:
-          (existingUser as unknown as any)?.notes ??
-          "" + " - Rechazado: " + rejectReason,
-        rejectionInfo: {
-          rejectedAt: new Date().toISOString(),
-          reason: rejectReason,
-          rejectedBy: "admin", // En el futuro podría ser el ID del admin
-        },
-      };
-      updateUser(updatedUser);
+    const updatedUserData = {
+      membership: {
+        ...user.membership,
+        status: "inactive" as const,
+      },
+      notes:
+        ((user as unknown as any)?.notes ?? "") +
+        " - Rechazado: " +
+        rejectReason,
+      rejectionInfo: {
+        rejectedAt: new Date().toISOString(),
+        reason: rejectReason,
+        rejectedBy: "admin", // En el futuro podría ser el ID del admin
+      },
+    };
 
+    const result = await updateUserById(user.id, updatedUserData);
+    if (result) {
       toast({
         title: "Usuario rechazado",
         description: `${user.firstName} ${user.lastName} ha sido rechazado.`,
         variant: "destructive",
       });
+      setShowRejectDialog(false);
+      setRejectReason("");
+    } else {
+      toast({
+        title: "Error",
+        description: "Error al rechazar el usuario",
+        variant: "destructive",
+      });
     }
-
-    setShowRejectDialog(false);
-    setRejectReason("");
   };
 
   // Función para reactivar usuario rechazado
-  const handleReactivateUser = (user: PendingUser) => {
+  const handleReactivateUser = async (user: PendingUser) => {
     if (!user || !user.id) {
       toast({
         title: "Error",
@@ -224,23 +231,31 @@ export function UserApproval() {
       return;
     }
 
-    const updatedUser = {
-      ...user,
+    const updatedUserData = {
       membership: {
         ...user.membership,
         status: "pending" as const,
       },
       notes:
-        (user as unknown as any)?.notes ??
-        "" + " - Reactivado el " + new Date().toLocaleDateString(),
+        ((user as unknown as any)?.notes ?? "") +
+        " - Reactivado el " +
+        new Date().toLocaleDateString(),
       rejectionInfo: undefined, // Limpiar información de rechazo
     };
-    updateUser(updatedUser);
 
-    toast({
-      title: "Usuario reactivado",
-      description: `${user.firstName} ${user.lastName} ha sido reactivado y vuelve a estar pendiente.`,
-    });
+    const result = await updateUserById(user.id, updatedUserData);
+    if (result) {
+      toast({
+        title: "Usuario reactivado",
+        description: `${user.firstName} ${user.lastName} ha sido reactivado y vuelve a estar pendiente.`,
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Error al reactivar el usuario",
+        variant: "destructive",
+      });
+    }
   };
 
   // Función para eliminar usuario permanentemente

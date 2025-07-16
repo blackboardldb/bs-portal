@@ -13,6 +13,8 @@ import type {
   Discipline,
   CancellationValidation,
 } from "./types";
+import { getDataProvider } from "./data-layer/provider-factory";
+import { DataProvider } from "./data-layer/types";
 
 // Helper function to get cancellation rule for a specific time
 function getCancellationRule(
@@ -49,16 +51,33 @@ function getCancellationRule(
 /**
  * Servicio centralizado de validaciones para el backend
  * Todas las validaciones de negocio se manejan aquí
+ * Ahora integrado con la nueva capa de datos
  */
 export class ValidationService {
+  private static dataProvider: DataProvider;
+
+  // Initialize the validation service with data provider
+  static initialize(provider?: DataProvider): void {
+    this.dataProvider = provider || getDataProvider();
+  }
+
+  // Get data provider (lazy initialization)
+  private static getProvider(): DataProvider {
+    if (!this.dataProvider) {
+      this.dataProvider = getDataProvider();
+    }
+    return this.dataProvider;
+  }
+
   /**
    * Valida si un usuario puede inscribirse a una clase
+   * Ahora usa el data provider para obtener datos relacionados
    */
-  static canUserRegisterToClass(
+  static async canUserRegisterToClass(
     user: FitCenterUserProfile,
     classSession: ClassSession,
-    allClassSessions: ClassSession[]
-  ): { canRegister: boolean; reason?: string } {
+    allClassSessions?: ClassSession[]
+  ): Promise<{ canRegister: boolean; reason?: string }> {
     const now = new Date();
     const classStart = parseISO(classSession.dateTime);
     const classEnd = addMinutes(classStart, classSession.durationMinutes || 60);
@@ -114,14 +133,38 @@ export class ValidationService {
     }
 
     // 8. Verificar límite de inscripciones por día
-    const today = new Date().toISOString().split("T")[0]; // Use UTC date for consistency
-    const todayClasses = allClassSessions.filter((session) => {
-      const sessionDate = session.dateTime.split("T")[0];
-      return (
-        sessionDate === today &&
-        session.registeredParticipantsIds.includes(user.id)
-      );
-    });
+    let todayClasses: ClassSession[] = [];
+
+    if (allClassSessions) {
+      // Use provided sessions if available
+      const today = new Date().toISOString().split("T")[0];
+      todayClasses = allClassSessions.filter((session) => {
+        const sessionDate = session.dateTime.split("T")[0];
+        return (
+          sessionDate === today &&
+          session.registeredParticipantsIds.includes(user.id)
+        );
+      });
+    } else {
+      // Fetch today's classes from data provider
+      try {
+        const provider = this.getProvider();
+        const today = new Date().toISOString().split("T")[0];
+        const todayClassesResult = await provider.classes.findByDateRange(
+          today,
+          today
+        );
+        todayClasses = todayClassesResult.filter((session) =>
+          session.registeredParticipantsIds.includes(user.id)
+        );
+      } catch (error) {
+        console.warn(
+          "[ValidationService] Could not fetch today's classes for validation:",
+          error
+        );
+        // Continue without this validation if data fetch fails
+      }
+    }
 
     const maxBookingsPerDay =
       user.membership.centerConfig.maxBookingsPerDay || 2;

@@ -28,6 +28,7 @@ import {
   STUDENT_STATES,
   STATE_COLORS,
 } from "@/lib/blacksheep-store";
+import { useToast } from "@/components/ui/use-toast";
 import { initialMembershipPlans } from "@/lib/mock-data";
 import type { FitCenterUserProfile } from "@/lib/types";
 import { usePagination, usePaginationControls } from "@/lib/use-pagination";
@@ -47,7 +48,11 @@ export default function AlumnosPage() {
     pagination,
     updateUser,
     addUser,
+    createUser,
+    updateUserById,
   } = useBlackSheepStore();
+
+  const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -106,21 +111,27 @@ export default function AlumnosPage() {
   const totalPages = pagination?.totalPages || 1;
   const currentPage = pagination?.page || 1;
   const startIndex = (currentPage - 1) * limit;
-  const endIndex = Math.min(startIndex + users.length, totalItems);
+  const endIndex = Math.min(startIndex + (users?.length || 0), totalItems);
 
   return (
     <div className="p-4 md:p-8 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Gestión de Alumnos</h1>
         <AddStudentModal
-          onAddStudent={(studentData) => {
-            const newStudent = {
-              ...studentData,
-              id: `usr_${Date.now()}_${Math.random()
-                .toString(36)
-                .substr(2, 9)}`,
-            };
-            addUser(newStudent);
+          onAddStudent={async (studentData) => {
+            const result = await createUser(studentData);
+            if (result) {
+              toast({
+                title: "Alumno agregado",
+                description: "El alumno se ha agregado correctamente",
+              });
+            } else {
+              toast({
+                title: "Error",
+                description: "Error al agregar el alumno",
+                variant: "destructive",
+              });
+            }
           }}
           plans={initialMembershipPlans}
           onSuccess={() => {
@@ -304,7 +315,24 @@ export default function AlumnosPage() {
 
       <StudentEditModal
         student={editingStudent}
-        onEdit={(updatedStudent) => updateUser(updatedStudent)}
+        onEdit={async (updatedStudent) => {
+          const result = await updateUserById(
+            updatedStudent.id,
+            updatedStudent
+          );
+          if (result) {
+            toast({
+              title: "Alumno actualizado",
+              description: "El alumno se ha actualizado correctamente",
+            });
+          } else {
+            toast({
+              title: "Error",
+              description: "Error al actualizar el alumno",
+              variant: "destructive",
+            });
+          }
+        }}
         onClose={handleCloseEditModal}
         onSuccess={() => {
           // Refrescar la lista después de editar

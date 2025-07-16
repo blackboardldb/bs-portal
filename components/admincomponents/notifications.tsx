@@ -36,7 +36,8 @@ interface Notification {
 }
 
 export function Notifications() {
-  const { users, classSessions, updateUser } = useBlackSheepStore();
+  const { users, classSessions, updateUser, updateUserById } =
+    useBlackSheepStore();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,9 +57,8 @@ export function Notifications() {
     const now = new Date();
 
     // Usuarios pendientes de aprobación (revisión manual)
-    const pendingUsers = users.filter(
-      (user) => user.membership?.status === "pending"
-    );
+    const pendingUsers =
+      users?.filter((user) => user.membership?.status === "pending") || [];
     pendingUsers.forEach((user) => {
       newNotifications.push({
         id: `pending-user-${user.id}`,
@@ -113,9 +113,8 @@ export function Notifications() {
     setIsLoading(false);
   };
 
-  const handleApproveUser = (user: FitCenterUserProfile) => {
-    const updatedUser = {
-      ...user,
+  const handleApproveUser = async (user: FitCenterUserProfile) => {
+    const updatedUserData = {
       membership: {
         ...user.membership!,
         status: "active" as const,
@@ -130,18 +129,24 @@ export function Notifications() {
         new Date().toLocaleDateString(),
     };
 
-    updateUser(updatedUser);
-    markNotificationAsResolved(`pending-user-${user.id}`);
-
-    toast({
-      title: "Alumno aprobado",
-      description: `${user.firstName} ${user.lastName} puede inscribir clases`,
-    });
-
-    setShowUserModal(false);
+    const result = await updateUserById(user.id, updatedUserData);
+    if (result) {
+      markNotificationAsResolved(`pending-user-${user.id}`);
+      toast({
+        title: "Alumno aprobado",
+        description: `${user.firstName} ${user.lastName} puede inscribir clases`,
+      });
+      setShowUserModal(false);
+    } else {
+      toast({
+        title: "Error",
+        description: "Error al aprobar el alumno",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleRejectUser = (user: FitCenterUserProfile) => {
+  const handleRejectUser = async (user: FitCenterUserProfile) => {
     if (!rejectReason.trim()) {
       toast({
         title: "Error",
@@ -151,8 +156,7 @@ export function Notifications() {
       return;
     }
 
-    const updatedUser = {
-      ...user,
+    const updatedUserData = {
       membership: {
         ...user.membership!,
         status: "inactive" as const,
@@ -170,18 +174,24 @@ export function Notifications() {
       },
     };
 
-    updateUser(updatedUser);
-    markNotificationAsResolved(`pending-user-${user.id}`);
-
-    toast({
-      title: "Alumno rechazado",
-      description: `${user.firstName} ${user.lastName} no fue aprobado`,
-      variant: "destructive",
-    });
-
-    setShowRejectModal(false);
-    setRejectReason("");
-    setShowUserModal(false);
+    const result = await updateUserById(user.id, updatedUserData);
+    if (result) {
+      markNotificationAsResolved(`pending-user-${user.id}`);
+      toast({
+        title: "Alumno rechazado",
+        description: `${user.firstName} ${user.lastName} no fue aprobado`,
+        variant: "destructive",
+      });
+      setShowRejectModal(false);
+      setRejectReason("");
+      setShowUserModal(false);
+    } else {
+      toast({
+        title: "Error",
+        description: "Error al rechazar el alumno",
+        variant: "destructive",
+      });
+    }
   };
 
   const markNotificationAsResolved = (notificationId: string) => {

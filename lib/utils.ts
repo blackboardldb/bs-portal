@@ -363,8 +363,8 @@ export function convertClassSessionToClassItem(
   instructors: any[],
   currentUserId?: string
 ) {
-  const discipline = disciplines.find((d) => d.id === session.disciplineId);
-  const instructor = instructors.find((i) => i.id === session.instructorId);
+  const discipline = disciplines?.find((d) => d.id === session.disciplineId);
+  const instructor = instructors?.find((i) => i.id === session.instructorId);
 
   return {
     id: session.id,

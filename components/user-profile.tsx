@@ -31,7 +31,7 @@ export function UserProfile() {
 
   // Cargar datos y seleccionar usuario de forma segura
   useEffect(() => {
-    if (users.length === 0) {
+    if (!users || users.length === 0) {
       fetchUsers();
     }
   }, [users, fetchUsers]);

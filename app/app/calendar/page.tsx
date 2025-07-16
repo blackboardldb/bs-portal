@@ -77,10 +77,12 @@ export default function CalendarPage() {
   const convertClassSessionToFormattedItem = useCallback(
     (session: ClassSession): FormattedClassItem => {
       if (!currentUser) return {} as FormattedClassItem; // Fallback
-      const instructor = instructors.find(
+      const instructor = instructors?.find(
         (inst) => inst.id === session.instructorId
       );
-      const discipline = disciplines.find((d) => d.id === session.disciplineId);
+      const discipline = disciplines?.find(
+        (d) => d.id === session.disciplineId
+      );
       const instructorName = instructor
         ? `${instructor.firstName} ${instructor.lastName}`
         : "Por asignar";
@@ -129,8 +131,8 @@ export default function CalendarPage() {
     try {
       // Cargar todos los datos necesarios para la vista
       if (users.length === 0) await fetchUsers();
-      if (instructors.length === 0) await fetchInstructors();
-      if (disciplines.length === 0) await fetchDisciplines();
+      if (!instructors || instructors.length === 0) await fetchInstructors();
+      if (!disciplines || disciplines.length === 0) await fetchDisciplines();
       if (classSessions.length === 0) await fetchClassSessions();
     } catch (error) {
       console.error("Error loading classes:", error);
@@ -143,10 +145,10 @@ export default function CalendarPage() {
       setIsLoading(false);
     }
   }, [
-    users.length,
-    instructors.length,
-    disciplines.length,
-    classSessions.length,
+    users?.length,
+    instructors?.length,
+    disciplines?.length,
+    classSessions?.length,
     fetchUsers,
     fetchInstructors,
     fetchDisciplines,
@@ -161,7 +163,7 @@ export default function CalendarPage() {
 
   // Lógica para generar y fusionar clases - OPTIMIZADA para solo 3 semanas
   const unifiedClasses = useMemo(() => {
-    if (disciplines.length === 0) return classSessions;
+    if (!disciplines || disciplines.length === 0) return classSessions;
 
     const generatedClasses: ClassSession[] = [];
 
@@ -312,75 +314,129 @@ export default function CalendarPage() {
   const confirmRegistration = async () => {
     if (!selectedClass || !currentUser) return;
 
-    const classToUpdate = unifiedClasses.find(
-      (cls) => cls.id === selectedClass.id
-    );
-    if (!classToUpdate) return;
+    try {
+      // Si es una clase generada, primero crearla en la base de datos
+      let classId = selectedClass.id;
+      if (selectedClass.id.startsWith("gen_")) {
+        const createPayload = {
+          startDate: selectedClass.dateTime.split("T")[0],
+          endDate: selectedClass.dateTime.split("T")[0],
+          disciplineId: selectedClass.id.split("_")[1], // Extraer disciplineId del ID generado
+          instructorId: "inst_default",
+          time: selectedClass.dateTime.split("T")[1].substring(0, 5),
+          maxCapacity: 15,
+        };
 
-    // Lógica de Actualización Optimista
-    if (classToUpdate.isGenerated) {
-      // 1. Si es generada, la creamos como "real" en el store
-      const newRealClass: ClassSession = {
-        ...classToUpdate,
-        id: `cls_${Date.now()}`, // Nuevo ID real
-        isGenerated: false,
-        registeredParticipantsIds: [currentUser.id],
-      };
-      addClassSession(newRealClass);
-    } else {
-      // 2. Si ya es real, solo actualizamos los participantes
-      const updatedParticipants = [
-        ...classToUpdate.registeredParticipantsIds,
-        currentUser.id,
-      ];
-      updateClassSession({
-        ...classToUpdate,
-        registeredParticipantsIds: updatedParticipants,
+        const createResponse = await fetch("/api/classes/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(createPayload),
+        });
+
+        if (createResponse.ok) {
+          const createResult = await createResponse.json();
+          classId = createResult.classes[0].id;
+        } else {
+          throw new Error("Error al crear la clase");
+        }
+      }
+
+      // Registrar al usuario en la clase
+      const response = await fetch(`/api/classes/${classId}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Registro exitoso",
+          description: "Te has registrado exitosamente en la clase",
+        });
+
+        // Refrescar las clases para mostrar el cambio
+        await fetchClassSessions();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al registrarse en la clase");
+      }
+    } catch (error) {
+      toast({
+        title: "Error al registrarse",
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
       });
     }
-
-    toast({
-      title: "Registro exitoso",
-      description: "Te has registrado exitosamente en la clase",
-    });
-
-    // La UI se actualiza instantáneamente gracias a Zustand
-    // En una app real, aquí iría la llamada a la API en segundo plano
   };
 
   const confirmCancellation = async () => {
     if (!selectedClass || !currentUser) return;
 
-    const classToUpdate = unifiedClasses.find(
-      (cls) => cls.id === selectedClass.id
-    );
+    try {
+      // Verificar que la clase existe y no es generada
+      if (selectedClass.id.startsWith("gen_")) {
+        toast({
+          title: "Error",
+          description: "No se puede cancelar una clase no registrada.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    if (!classToUpdate || classToUpdate.isGenerated) {
+      // Verificar reglas de cancelación
+      const discipline = disciplines?.find(
+        (d) => selectedClass.name === d.name || selectedClass.id.includes(d.id)
+      );
+
+      if (discipline?.cancellationRules) {
+        const classDateTime = new Date(selectedClass.dateTime);
+        const now = new Date();
+        const hoursUntilClass =
+          (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        // Buscar regla aplicable para esta hora específica
+        const applicableRule = discipline.cancellationRules.find((rule) =>
+          selectedClass.formattedTime.startsWith(rule.time)
+        );
+
+        if (applicableRule && hoursUntilClass < applicableRule.hoursBefore) {
+          toast({
+            title: "No se puede cancelar",
+            description: `Debes cancelar al menos ${applicableRule.hoursBefore} horas antes de la clase`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      // Cancelar la inscripción usando la API
+      const response = await fetch(`/api/classes/${selectedClass.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUser.id }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Cancelación exitosa",
+          description: "Has cancelado tu registro exitosamente",
+        });
+
+        // Refrescar las clases para mostrar el cambio
+        await fetchClassSessions();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al cancelar la inscripción");
+      }
+    } catch (error) {
       toast({
-        title: "Error",
-        description: "No se puede cancelar una clase no registrada.",
+        title: "Error al cancelar",
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
         variant: "destructive",
       });
-      return;
     }
-
-    // Lógica de Actualización Optimista
-    const updatedParticipants = classToUpdate.registeredParticipantsIds.filter(
-      (id) => id !== currentUser.id
-    );
-
-    updateClassSession({
-      ...classToUpdate,
-      registeredParticipantsIds: updatedParticipants,
-    });
-
-    toast({
-      title: "Cancelación exitosa",
-      description: "Has cancelado tu registro exitosamente",
-    });
-
-    // La UI se actualiza instantáneamente gracias a Zustand
-    // En una app real, aquí iría la llamada a la API en segundo plano
   };
 
   const closeRegistrationModal = () => {

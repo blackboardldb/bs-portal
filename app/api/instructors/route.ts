@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/mock-database";
+import { InstructorService } from "@/lib/services/instructor-service";
+import { ErrorHandler } from "@/lib/errors/handler";
+
+// Initialize services
+const instructorService = new InstructorService();
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-
-    // Parámetros de paginación
+    // Get query parameters
+    const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-
-    // Parámetros de filtrado
     const search = searchParams.get("search") || "";
     const role = searchParams.get("role") || "";
     const isActive = searchParams.get("isActive");
 
-    // Validar parámetros
+    // Validate parameters
     if (page < 1 || limit < 1 || limit > 100) {
       return NextResponse.json(
         { error: "Invalid pagination parameters" },
@@ -22,50 +23,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Construir where clause
-    const whereClause: any = {};
-    if (role && role !== "todos") whereClause.role = role;
-    if (isActive && isActive !== "todos") {
-      whereClause.isActive = isActive === "true";
-    }
-    if (search) {
-      whereClause.OR = [
-        { firstName: { contains: search, mode: "insensitive" } },
-        { lastName: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-      ];
-    }
-
-    // Obtener instructores con filtros y paginación
-    const instructors = await prisma.instructor.findMany({
-      where: whereClause,
-      take: limit,
-      skip: (page - 1) * limit,
-      orderBy: { firstName: "asc" },
-    });
-
-    // Obtener total de instructores para paginación
-    const total = await prisma.instructor.count({ where: whereClause });
-
-    // Calcular metadatos de paginación
-    const totalPages = Math.ceil(total / limit);
-
-    const pagination = {
+    // Use InstructorService to get instructors with filters
+    const response = await instructorService.getInstructors({
       page,
       limit,
-      total,
-      totalPages,
-    };
+      search: search || undefined,
+      role: role && role !== "todos" ? role : undefined,
+      isActive:
+        isActive && isActive !== "todos" ? isActive === "true" : undefined,
+    });
 
-    return NextResponse.json({
-      instructors,
-      pagination,
+    // Return standardized response
+    return NextResponse.json(response);
+  } catch (error) {
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "getInstructors",
+      resource: "instructors",
+    });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    // Use InstructorService to create instructor with validation
+    const response = await instructorService.createInstructor(body);
+
+    // Return standardized response
+    return NextResponse.json(response, {
+      status: response.success ? 201 : 400,
     });
   } catch (error) {
-    console.error("Error fetching instructors:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "createInstructor",
+      resource: "instructors",
+    });
   }
 }

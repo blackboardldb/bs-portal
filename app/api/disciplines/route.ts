@@ -1,85 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/mock-database";
+import { DisciplineService } from "@/lib/services/discipline-service";
+import { ErrorHandler } from "@/lib/errors/handler";
+
+// Initialize services
+const disciplineService = new DisciplineService();
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    // Get query parameters
+    const searchParams = request.nextUrl.searchParams;
     const isActive = searchParams.get("isActive");
-
-    // Get disciplines from mock database
-    const disciplines = await prisma.discipline.findMany({});
-
-    // Apply filters
-    let filteredDisciplines = disciplines;
-    if (isActive !== null) {
-      const activeFilter = isActive === "true";
-      filteredDisciplines = filteredDisciplines.filter(
-        (discipline) => discipline.isActive === activeFilter
-      );
-    }
-
-    // Apply pagination
+    const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedDisciplines = filteredDisciplines.slice(
-      startIndex,
-      endIndex
-    );
 
-    return NextResponse.json({
-      disciplines: paginatedDisciplines,
-      pagination: {
-        page,
-        limit,
-        total: filteredDisciplines.length,
-        totalPages: Math.ceil(filteredDisciplines.length / limit),
-      },
+    // Use DisciplineService to get disciplines with filters
+    const response = await disciplineService.getDisciplines({
+      page,
+      limit,
+      isActive: isActive ? isActive === "true" : undefined,
+      search: search || undefined,
     });
+
+    // Return standardized response
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Error fetching disciplines:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch disciplines" },
-      { status: 500 }
-    );
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "getDisciplines",
+      resource: "disciplines",
+    });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const disciplineData = await request.json();
+    const body = await request.json();
 
-    // Validate required fields
-    if (!disciplineData.name) {
-      return NextResponse.json({ error: "name is required" }, { status: 400 });
-    }
+    // Use DisciplineService to create discipline with validation
+    const response = await disciplineService.createDiscipline(body);
 
-    // Create discipline with mock database
-    const newDiscipline = await prisma.discipline.create({
-      data: {
-        id: `disc_${disciplineData.name
-          .toLowerCase()
-          .replace(/\s/g, "_")}_${Date.now()}`,
-        organizationId: "org_blacksheep_001",
-        name: disciplineData.name,
-        description: disciplineData.description || "",
-        color: disciplineData.color || "#3b82f6",
-        isActive: disciplineData.isActive !== false,
-        schedule: disciplineData.schedule || [],
-        cancellationRules: {
-          defaultHours: 2,
-          rules: [],
-        },
-      },
+    // Return standardized response
+    return NextResponse.json(response, {
+      status: response.success ? 201 : 400,
     });
-
-    return NextResponse.json(newDiscipline, { status: 201 });
   } catch (error) {
-    console.error("Error creating discipline:", error);
-    return NextResponse.json(
-      { error: "Failed to create discipline" },
-      { status: 500 }
-    );
+    // Use ErrorHandler to create standardized error response
+    return ErrorHandler.createResponse(error, {
+      operation: "createDiscipline",
+      resource: "disciplines",
+    });
   }
 }

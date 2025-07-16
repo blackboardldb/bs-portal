@@ -31,19 +31,23 @@ export function AdminDashboard() {
 
   // Memoizar estadísticas principales
   const stats = useMemo(() => {
-    const totalMembers = users.length;
-    const activeMembers = users.filter(
-      (s: FitCenterUserProfile) => s.membership?.status === "active"
-    ).length;
-    const inactiveMembers = users.filter(
-      (s: FitCenterUserProfile) => s.membership?.status === "inactive"
-    ).length;
-    const frozenMembers = users.filter(
-      (s: FitCenterUserProfile) => s.membership?.status === "frozen"
-    ).length;
-    const expiredMembers = users.filter(
-      (s: FitCenterUserProfile) => s.membership?.status === "expired"
-    ).length;
+    const totalMembers = users?.length || 0;
+    const activeMembers =
+      users?.filter(
+        (s: FitCenterUserProfile) => s.membership?.status === "active"
+      ).length || 0;
+    const inactiveMembers =
+      users?.filter(
+        (s: FitCenterUserProfile) => s.membership?.status === "inactive"
+      ).length || 0;
+    const frozenMembers =
+      users?.filter(
+        (s: FitCenterUserProfile) => s.membership?.status === "frozen"
+      ).length || 0;
+    const expiredMembers =
+      users?.filter(
+        (s: FitCenterUserProfile) => s.membership?.status === "expired"
+      ).length || 0;
     return {
       totalMembers,
       activeMembers,

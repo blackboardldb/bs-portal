@@ -1,5 +1,5 @@
 {
-  "name": "BS-portal",
+  "name": "bsportal",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,17 @@
     "test": "node tests/run-tests.js",
     "test:api": "node tests/api.test.js",
     "test:watch": "node tests/run-tests.js --watch",
-    "fix:lint": "node scripts/fix-lint-errors.js"
+    "fix:lint": "node scripts/fix-lint-errors.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "migrate:to-prisma": "./scripts/migrate-to-prisma.sh",
+    "migrate:to-mock": "./scripts/rollback-to-mock.sh"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

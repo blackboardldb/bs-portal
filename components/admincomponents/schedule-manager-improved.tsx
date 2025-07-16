@@ -22,6 +22,7 @@ import {
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { DayOfWeek, Discipline, CancellationRule } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Plus,
   X,
@@ -61,8 +62,11 @@ export default function ScheduleManagerImproved() {
     updateDiscipline,
     deleteDiscipline,
     fetchDisciplines,
+    createDiscipline,
+    updateDisciplineById,
   } = useBlackSheepStore();
 
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
 
   // Estados para gestión de disciplinas
@@ -216,7 +220,7 @@ export default function ScheduleManagerImproved() {
     }));
   };
 
-  const handleSaveDiscipline = () => {
+  const handleSaveDiscipline = async () => {
     if (!disciplineForm.name) return;
 
     // Filtrar horarios solo para días seleccionados
@@ -230,9 +234,38 @@ export default function ScheduleManagerImproved() {
     };
 
     if (editingDiscipline) {
-      updateDiscipline({ ...disciplineData, id: editingDiscipline });
+      // Actualizar disciplina existente
+      const result = await updateDisciplineById(
+        editingDiscipline,
+        disciplineData
+      );
+      if (result) {
+        toast({
+          title: "Disciplina actualizada",
+          description: "La disciplina se ha actualizado correctamente",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al actualizar la disciplina",
+          variant: "destructive",
+        });
+      }
     } else {
-      addDiscipline({ ...disciplineData, id: `disc_${Date.now()}` });
+      // Crear nueva disciplina
+      const result = await createDiscipline(disciplineData);
+      if (result) {
+        toast({
+          title: "Disciplina agregada",
+          description: "La disciplina se ha agregado correctamente",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al agregar la disciplina",
+          variant: "destructive",
+        });
+      }
     }
 
     // Refrescar la lista después de agregar/editar
@@ -312,7 +345,7 @@ export default function ScheduleManagerImproved() {
               </CardContent>
             </Card>
           ))
-        ) : disciplines.length === 0 ? (
+        ) : !disciplines || disciplines.length === 0 ? (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -327,7 +360,7 @@ export default function ScheduleManagerImproved() {
             </CardContent>
           </Card>
         ) : (
-          disciplines.map((d) => (
+          disciplines?.map((d) => (
             <Card key={d.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">

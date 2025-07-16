@@ -1,0 +1,236 @@
+// Prisma Schema for BlackSheep CrossFit Application
+// This schema matches the existing TypeScript interfaces for seamless migration
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - matches FitCenterUserProfile interface
+model User {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String   @unique
+  phone     String?
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Membership information stored as JSON to match existing structure
+  membership Json?
+
+  // Relations
+  classRegistrations ClassRegistration[]
+  membershipRenewals MembershipRenewal[]
+
+  @@map("users")
+  @@index([email])
+  @@index([role])
+}
+
+// ClassSession model - matches ClassSession interface
+model ClassSession {
+  id                        String   @id @default(cuid())
+  organizationId           String
+  disciplineId             String
+  name                     String
+  dateTime                 DateTime
+  durationMinutes          Int
+  instructorId             String
+  capacity                 Int
+  registeredParticipantsIds String[]
+  waitlistParticipantsIds   String[]
+  status                   String   @default("scheduled")
+  notes                    String?
+  isGenerated              Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  // Relations
+  discipline Discipline @relation(fields: [disciplineId], references: [id])
+  instructor Instructor @relation(fields: [instructorId], references: [id])
+  registrations ClassRegistration[]
+
+  @@map("class_sessions")
+  @@index([dateTime])
+  @@index([disciplineId])
+  @@index([instructorId])
+  @@index([status])
+  @@index([organizationId])
+}
+
+// Discipline model - matches Discipline interface
+model Discipline {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  color          String   @default("#3b82f6")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Schedule stored as JSON to match existing structure
+  schedule Json?
+  
+  // Cancellation rules stored as JSON
+  cancellationRules Json?
+
+  // Relations
+  classes ClassSession[]
+
+  @@map("disciplines")
+  @@index([isActive])
+  @@index([organizationId])
+  @@unique([organizationId, name])
+}
+
+// Instructor model - matches Instructor interface
+model Instructor {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String   @unique
+  phone     String?
+  role      String   @default("instructor")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Additional instructor information stored as JSON
+  profile Json?
+
+  // Relations
+  classes ClassSession[]
+
+  @@map("instructors")
+  @@index([email])
+  @@index([isActive])
+  @@index([role])
+}
+
+// MembershipPlan model - matches MembershipPlan interface
+model MembershipPlan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  price       Float
+  duration    Int      // Duration in months
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Plan features and configuration stored as JSON
+  features Json?
+  config   Json?
+
+  @@map("membership_plans")
+  @@index([isActive])
+  @@index([price])
+}
+
+// Organization model - for multi-tenant support
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  settings  Json?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("organizations")
+}
+
+// ClassRegistration model - for tracking class registrations
+model ClassRegistration {
+  id            String   @id @default(cuid())
+  userId        String
+  classId       String
+  status        String   @default("registered") // registered, waitlist, cancelled, attended, no_show
+  registeredAt  DateTime @default(now())
+  cancelledAt   DateTime?
+  notes         String?
+
+  // Relations
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class ClassSession @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("class_registrations")
+  @@unique([userId, classId])
+  @@index([userId])
+  @@index([classId])
+  @@index([status])
+}
+
+// MembershipRenewal model - for tracking membership renewals
+model MembershipRenewal {
+  id              String   @id @default(cuid())
+  userId          String
+  currentPlanId   String?
+  requestedPlanId String?
+  status          String   @default("pending") // pending, approved, rejected, processed
+  requestedAt     DateTime @default(now())
+  processedAt     DateTime?
+  notes           String?
+  
+  // Renewal details stored as JSON
+  renewalDetails Json?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("membership_renewals")
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+// SystemLog model - for audit trail and monitoring
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     String   // debug, info, warn, error, fatal
+  message   String
+  context   Json?
+  timestamp DateTime @default(now())
+  
+  // Additional metadata
+  operation String?
+  resource  String?
+  userId    String?
+  sessionId String?
+
+  @@map("system_logs")
+  @@index([level])
+  @@index([timestamp])
+  @@index([operation])
+  @@index([resource])
+  @@index([userId])
+}
+
+// PerformanceMetric model - for performance monitoring
+model PerformanceMetric {
+  id          String   @id @default(cuid())
+  operation   String
+  resource    String
+  provider    String
+  duration    Int      // Duration in milliseconds
+  success     Boolean
+  recordCount Int?
+  cacheHit    Boolean?
+  timestamp   DateTime @default(now())
+  
+  // Additional metadata stored as JSON
+  metadata Json?
+
+  @@map("performance_metrics")
+  @@index([operation])
+  @@index([resource])
+  @@index([provider])
+  @@index([timestamp])
+  @@index([success])
+}

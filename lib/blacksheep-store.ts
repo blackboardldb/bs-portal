@@ -16,6 +16,8 @@ import type {
   MembershipPlan as Plan,
   Organization,
 } from "./types";
+import { UserService } from "./services/user-service";
+import { ApiResponse, PaginatedApiResponse } from "./api/types";
 
 // Create missing mock data
 const initialClassRegistrations: any[] = [];
@@ -32,15 +34,23 @@ export interface PaginationState {
 interface BlackSheepStore {
   // State
   users: User[];
-  pagination: PaginationState | null; // NUEVO: Estado para la paginación
+  pagination: PaginationState | null;
   classSessions: ClassSession[];
   disciplines: Discipline[];
   instructors: Instructor[];
-  instructorsPagination: PaginationState | null; // NUEVO: Estado para la paginación de instructores
+  instructorsPagination: PaginationState | null;
   plans: Plan[];
   initialOrganization: Organization | null;
   classRegistrations: any[];
   membershipRenewals: any[];
+  selectedUser: User | null;
+  searchResults: User[];
+  userStats: any;
+  isLoading: boolean;
+  error: string | null;
+
+  // Provider management
+  currentProviderType: "mock" | "prisma";
 
   // User actions
   addUser: (user: User) => void;
@@ -53,6 +63,13 @@ interface BlackSheepStore {
     role?: string,
     status?: string
   ) => Promise<void>;
+  fetchUserById: (id: string) => Promise<User | null>;
+  createUser: (userData: Partial<User>) => Promise<User | null>;
+  updateUserById: (id: string, userData: Partial<User>) => Promise<User | null>;
+  deleteUserById: (id: string) => Promise<boolean>;
+  searchUsers: (query: string) => Promise<User[]>;
+  getUserStats: () => Promise<any>;
+  getUsersByMembershipStatus: (status: string) => Promise<User[]>;
 
   // Class session actions
   addClassSession: (classSession: ClassSession) => void;
@@ -69,6 +86,13 @@ interface BlackSheepStore {
   addDiscipline: (discipline: Discipline) => void;
   updateDiscipline: (discipline: Discipline) => void;
   deleteDiscipline: (disciplineId: string) => void;
+  createDiscipline: (
+    disciplineData: Partial<Discipline>
+  ) => Promise<Discipline | null>;
+  updateDisciplineById: (
+    id: string,
+    disciplineData: Partial<Discipline>
+  ) => Promise<Discipline | null>;
   fetchDisciplines: (
     page?: number,
     limit?: number,
@@ -79,6 +103,13 @@ interface BlackSheepStore {
   addInstructor: (instructor: Instructor) => void;
   updateInstructor: (instructor: Instructor) => void;
   deleteInstructor: (instructorId: string) => void;
+  createInstructor: (
+    instructorData: Partial<Instructor>
+  ) => Promise<Instructor | null>;
+  updateInstructorById: (
+    id: string,
+    instructorData: Partial<Instructor>
+  ) => Promise<Instructor | null>;
   fetchInstructors: (
     page?: number,
     limit?: number,
@@ -91,6 +122,8 @@ interface BlackSheepStore {
   addPlan: (plan: Plan) => void;
   updatePlan: (plan: Plan) => void;
   deletePlan: (planId: string) => void;
+  createPlan: (planData: Partial<Plan>) => Promise<Plan | null>;
+  updatePlanById: (id: string, planData: Partial<Plan>) => Promise<Plan | null>;
   fetchPlans: (
     page?: number,
     limit?: number,
@@ -113,22 +146,32 @@ interface BlackSheepStore {
   updateMembershipRenewal: (renewal: any) => void;
   deleteMembershipRenewal: (renewalId: string) => void;
   fetchMembershipRenewals: () => void;
+
+  // Provider management actions
+  switchProvider: (providerType: "mock" | "prisma") => Promise<boolean>;
+  getProviderHealth: () => Promise<any>;
 }
 
 export const useBlackSheepStore = create<BlackSheepStore>()(
   devtools(
     (set, get) => ({
       // Initial state
-      users: [], // Ahora vacío
-      pagination: null, // NUEVO
+      users: [],
+      pagination: null,
       classSessions: initialClassSessions,
-      disciplines: [], // Ahora vacío para paginación
-      instructors: [], // Ahora vacío para paginación
-      instructorsPagination: null, // NUEVO
-      plans: [], // Ahora vacío para paginación
+      disciplines: [],
+      instructors: [],
+      instructorsPagination: null,
+      plans: [],
       initialOrganization: initialOrganization,
       classRegistrations: initialClassRegistrations,
       membershipRenewals: initialMembershipRenewals,
+      selectedUser: null,
+      searchResults: [],
+      userStats: null,
+      isLoading: false,
+      error: null,
+      currentProviderType: "mock",
 
       // User actions
       addUser: (user) => set((state) => ({ users: [...state.users, user] })),
@@ -148,22 +191,222 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         status = ""
       ) => {
         try {
-          const params = new URLSearchParams({
-            page: page.toString(),
-            limit: limit.toString(),
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.getUsers({
+            page,
+            limit,
+            search: search || undefined,
+            role: role || undefined,
+            status: status || undefined,
           });
-          if (search) params.append("search", search);
-          if (role) params.append("role", role);
-          if (status) params.append("status", status);
 
-          const response = await fetch(`/api/users?${params.toString()}`);
-          if (!response.ok) throw new Error("Failed to fetch users");
-
-          const data = await response.json();
-          set({ users: data.users, pagination: data.pagination });
+          if (response.success) {
+            set({
+              users: response.data,
+              pagination: response.pagination,
+            });
+          } else {
+            throw new Error(response.error?.message || "Error fetching users");
+          }
         } catch (error) {
           console.error("Error fetching users:", error);
-          set({ users: [], pagination: null });
+          set({
+            users: [],
+            pagination: null,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      fetchUserById: async (id: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.getUserById(id);
+
+          if (response.success && response.data) {
+            set({ selectedUser: response.data });
+            return response.data;
+          } else {
+            throw new Error(response.error?.message || "Error fetching user");
+          }
+        } catch (error) {
+          console.error("Error fetching user:", error);
+          set({
+            selectedUser: null,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      createUser: async (userData: Partial<User>) => {
+        try {
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.createUser(userData);
+
+          if (response.success) {
+            set((state) => ({
+              users: [...state.users, response.data],
+            }));
+            return response.data;
+          } else {
+            throw new Error(response.error?.message || "Error creating user");
+          }
+        } catch (error) {
+          console.error("Error creating user:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      updateUserById: async (id: string, userData: Partial<User>) => {
+        try {
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.updateUser(id, userData);
+
+          if (response.success) {
+            set((state) => ({
+              users: state.users.map((user) =>
+                user.id === id ? { ...user, ...response.data } : user
+              ),
+              selectedUser:
+                state.selectedUser?.id === id
+                  ? { ...state.selectedUser, ...response.data }
+                  : state.selectedUser,
+            }));
+            return response.data;
+          } else {
+            throw new Error(response.error?.message || "Error updating user");
+          }
+        } catch (error) {
+          console.error("Error updating user:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      deleteUserById: async (id: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.deleteUser(id);
+
+          if (response.success) {
+            set((state) => ({
+              users: state.users.filter((user) => user.id !== id),
+              selectedUser:
+                state.selectedUser?.id === id ? null : state.selectedUser,
+            }));
+            return true;
+          } else {
+            throw new Error(response.error?.message || "Error deleting user");
+          }
+        } catch (error) {
+          console.error("Error deleting user:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return false;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      searchUsers: async (query: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.searchUsers(query);
+
+          if (response.success) {
+            set({ searchResults: response.data });
+            return response.data;
+          } else {
+            throw new Error(response.error?.message || "Error searching users");
+          }
+        } catch (error) {
+          console.error("Error searching users:", error);
+          set({
+            searchResults: [],
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return [];
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      getUserStats: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.getUserStats();
+
+          if (response.success) {
+            set({ userStats: response.data });
+            return response.data;
+          } else {
+            throw new Error(
+              response.error?.message || "Error fetching user stats"
+            );
+          }
+        } catch (error) {
+          console.error("Error fetching user stats:", error);
+          set({
+            userStats: null,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      getUsersByMembershipStatus: async (status: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          const userService = new UserService();
+
+          const response = await userService.getUsersByMembershipStatus(status);
+
+          if (response.success) {
+            return response.data;
+          } else {
+            throw new Error(
+              response.error?.message || "Error fetching users by status"
+            );
+          }
+        } catch (error) {
+          console.error("Error fetching users by status:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return [];
+        } finally {
+          set({ isLoading: false });
         }
       },
 
@@ -272,10 +515,77 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           if (!response.ok) throw new Error("Failed to fetch disciplines");
 
           const data = await response.json();
-          set({ disciplines: data.disciplines });
+          set({ disciplines: data.data });
         } catch (error) {
           console.error("Error fetching disciplines:", error);
           set({ disciplines: [] });
+        }
+      },
+
+      createDiscipline: async (disciplineData: Partial<Discipline>) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch("/api/disciplines", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(disciplineData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Error creating discipline");
+          }
+
+          const data = await response.json();
+          set((state) => ({
+            disciplines: [...state.disciplines, data.discipline],
+          }));
+          return data.discipline;
+        } catch (error) {
+          console.error("Error creating discipline:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      updateDisciplineById: async (
+        id: string,
+        disciplineData: Partial<Discipline>
+      ) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch(`/api/disciplines/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(disciplineData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Error updating discipline");
+          }
+
+          const data = await response.json();
+          set((state) => ({
+            disciplines: state.disciplines.map((discipline) =>
+              discipline.id === id
+                ? { ...discipline, ...data.discipline }
+                : discipline
+            ),
+          }));
+          return data.discipline;
+        } catch (error) {
+          console.error("Error updating discipline:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
@@ -313,12 +623,79 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
 
           const data = await response.json();
           set({
-            instructors: data.instructors,
+            instructors: data.data,
             instructorsPagination: data.pagination,
           });
         } catch (error) {
           console.error("Error fetching instructors:", error);
           set({ instructors: [], instructorsPagination: null });
+        }
+      },
+
+      createInstructor: async (instructorData: Partial<Instructor>) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch("/api/instructors", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(instructorData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Error creating instructor");
+          }
+
+          const data = await response.json();
+          set((state) => ({
+            instructors: [...state.instructors, data.instructor],
+          }));
+          return data.instructor;
+        } catch (error) {
+          console.error("Error creating instructor:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      updateInstructorById: async (
+        id: string,
+        instructorData: Partial<Instructor>
+      ) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch(`/api/instructors/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(instructorData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Error updating instructor");
+          }
+
+          const data = await response.json();
+          set((state) => ({
+            instructors: state.instructors.map((instructor) =>
+              instructor.id === id
+                ? { ...instructor, ...data.instructor }
+                : instructor
+            ),
+          }));
+          return data.instructor;
+        } catch (error) {
+          console.error("Error updating instructor:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
@@ -345,10 +722,72 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           if (!response.ok) throw new Error("Failed to fetch plans");
 
           const data = await response.json();
-          set({ plans: data.plans });
+          set({ plans: data.data });
         } catch (error) {
           console.error("Error fetching plans:", error);
           set({ plans: [] });
+        }
+      },
+
+      createPlan: async (planData: Partial<Plan>) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch("/api/plans", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(planData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Error creating plan");
+          }
+
+          const data = await response.json();
+          set((state) => ({
+            plans: [...state.plans, data.plan],
+          }));
+          return data.plan;
+        } catch (error) {
+          console.error("Error creating plan:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      updatePlanById: async (id: string, planData: Partial<Plan>) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch(`/api/plans/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(planData),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Error updating plan");
+          }
+
+          const data = await response.json();
+          set((state) => ({
+            plans: state.plans.map((plan) =>
+              plan.id === id ? { ...plan, ...data.plan } : plan
+            ),
+          }));
+          return data.plan;
+        } catch (error) {
+          console.error("Error updating plan:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        } finally {
+          set({ isLoading: false });
         }
       },
 
@@ -406,6 +845,77 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         // In a real app, this would fetch from API
         set({ membershipRenewals: initialMembershipRenewals });
       },
+
+      // Provider management actions
+      switchProvider: async (providerType: "mock" | "prisma") => {
+        try {
+          set({ isLoading: true, error: null });
+
+          // Call API to switch provider
+          const response = await fetch("/api/system/provider", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ provider: providerType }),
+          });
+
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error(data.error?.message || "Failed to switch provider");
+          }
+
+          // Update store state
+          set({ currentProviderType: providerType });
+
+          // Refresh data with new provider
+          const { fetchUsers, fetchClassSessions, fetchDisciplines } = get();
+          await Promise.all([
+            fetchUsers(),
+            fetchClassSessions(),
+            fetchDisciplines(),
+          ]);
+
+          return true;
+        } catch (error) {
+          console.error(`Error switching to ${providerType} provider:`, error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return false;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      getProviderHealth: async () => {
+        try {
+          set({ isLoading: true, error: null });
+
+          const response = await fetch("/api/system/provider");
+          const data = await response.json();
+
+          if (data.success) {
+            return data.data.health;
+          } else {
+            throw new Error(
+              data.error?.message || "Failed to get provider health"
+            );
+          }
+        } catch (error) {
+          console.error("Error checking provider health:", error);
+          return {
+            type: get().currentProviderType,
+            status: "unhealthy" as const,
+            details: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          };
+        } finally {
+          set({ isLoading: false });
+        }
+      },
     }),
     {
       name: "blacksheep-store",
@@ -435,16 +945,15 @@ export const useExpiredUsers = () =>
 export const useUserStats = () =>
   useBlackSheepStore((state) => {
     const users = state.users;
-    const totalUsers = users.length;
-    const activeUsers = users.filter(
-      (user) => user.membership?.status === "active"
-    ).length;
-    const pendingUsers = users.filter(
-      (user) => user.membership?.status === "pending"
-    ).length;
-    const expiredUsers = users.filter(
-      (user) => user.membership?.status === "expired"
-    ).length;
+    const totalUsers = users?.length || 0;
+    const activeUsers =
+      users?.filter((user) => user.membership?.status === "active").length || 0;
+    const pendingUsers =
+      users?.filter((user) => user.membership?.status === "pending").length ||
+      0;
+    const expiredUsers =
+      users?.filter((user) => user.membership?.status === "expired").length ||
+      0;
 
     return {
       total: totalUsers,

@@ -60,8 +60,16 @@ const durationOptions = [
 ];
 
 export default function PlansManager() {
-  const { plans, addPlan, updatePlan, deletePlan, fetchPlans, disciplines } =
-    useBlackSheepStore();
+  const {
+    plans,
+    addPlan,
+    updatePlan,
+    deletePlan,
+    fetchPlans,
+    disciplines,
+    createPlan,
+    updatePlanById,
+  } = useBlackSheepStore();
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -191,7 +199,7 @@ export default function PlansManager() {
     planForm.durationInMonths
   );
 
-  const handleSavePlan = () => {
+  const handleSavePlan = async () => {
     if (!planForm.name || !planForm.price) {
       toast({
         title: "Error",
@@ -202,25 +210,35 @@ export default function PlansManager() {
     }
 
     if (editingPlan) {
-      updatePlan({
-        ...planForm,
-        id: editingPlan,
-        organizationId: "org_default",
-      });
-      toast({
-        title: "Plan actualizado",
-        description: "El plan se ha actualizado correctamente",
-      });
+      // Actualizar plan existente
+      const result = await updatePlanById(editingPlan, planForm);
+      if (result) {
+        toast({
+          title: "Plan actualizado",
+          description: "El plan se ha actualizado correctamente",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al actualizar el plan",
+          variant: "destructive",
+        });
+      }
     } else {
-      addPlan({
-        ...planForm,
-        id: `plan_${Date.now()}`,
-        organizationId: "org_default",
-      });
-      toast({
-        title: "Plan agregado",
-        description: "El plan se ha agregado correctamente",
-      });
+      // Crear nuevo plan
+      const result = await createPlan(planForm);
+      if (result) {
+        toast({
+          title: "Plan agregado",
+          description: "El plan se ha agregado correctamente",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al agregar el plan",
+          variant: "destructive",
+        });
+      }
     }
 
     // Refrescar la lista después de agregar/editar
@@ -310,7 +328,7 @@ export default function PlansManager() {
               </CardContent>
             </Card>
           ))
-        ) : plans.length === 0 ? (
+        ) : !plans || plans.length === 0 ? (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
               <div className="text-center">
@@ -325,7 +343,7 @@ export default function PlansManager() {
             </CardContent>
           </Card>
         ) : (
-          plans.map((plan) => (
+          plans?.map((plan) => (
             <Card key={plan.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -416,6 +434,7 @@ export default function PlansManager() {
                     </div>
 
                     {plan.disciplineAccess === "limited" &&
+                      plan.allowedDisciplines &&
                       plan.allowedDisciplines.length > 0 && (
                         <div>
                           <span className="text-xs font-medium text-muted-foreground">
@@ -423,7 +442,7 @@ export default function PlansManager() {
                           </span>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {plan.allowedDisciplines.map((disciplineId) => {
-                              const discipline = disciplines.find(
+                              const discipline = disciplines?.find(
                                 (d) => d.id === disciplineId
                               );
                               if (!discipline) return null;
