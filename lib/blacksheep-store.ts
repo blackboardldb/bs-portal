@@ -110,6 +110,8 @@ interface BlackSheepStore {
     id: string,
     instructorData: Partial<Instructor>
   ) => Promise<Instructor | null>;
+  deleteInstructorById: (id: string) => Promise<boolean>;
+  toggleInstructorStatus: (id: string) => Promise<boolean>;
   fetchInstructors: (
     page?: number,
     limit?: number,
@@ -635,6 +637,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       createInstructor: async (instructorData: Partial<Instructor>) => {
         try {
           set({ isLoading: true, error: null });
+
           const response = await fetch("/api/instructors", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -643,14 +646,23 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
 
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || "Error creating instructor");
+            const errorMessage =
+              errorData.error?.message ||
+              errorData.message ||
+              JSON.stringify(errorData.error) ||
+              "Error creating instructor";
+            throw new Error(errorMessage);
           }
 
           const data = await response.json();
+
           set((state) => ({
-            instructors: [...state.instructors, data.instructor],
+            instructors: [
+              ...state.instructors,
+              data.data || data.instructor || data,
+            ],
           }));
-          return data.instructor;
+          return data.data || data.instructor || data;
         } catch (error) {
           console.error("Error creating instructor:", error);
           set({
@@ -676,24 +688,97 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
 
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || "Error updating instructor");
+            throw new Error(
+              errorData.error?.message ||
+                errorData.message ||
+                "Error updating instructor"
+            );
           }
 
           const data = await response.json();
           set((state) => ({
             instructors: state.instructors.map((instructor) =>
               instructor.id === id
-                ? { ...instructor, ...data.instructor }
+                ? { ...instructor, ...data.data }
                 : instructor
             ),
           }));
-          return data.instructor;
+          return data.data;
         } catch (error) {
           console.error("Error updating instructor:", error);
           set({
             error: error instanceof Error ? error.message : String(error),
           });
           return null;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      deleteInstructorById: async (id: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch(`/api/instructors/${id}`, {
+            method: "DELETE",
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(
+              errorData.error?.message ||
+                errorData.message ||
+                "Error deleting instructor"
+            );
+          }
+
+          set((state) => ({
+            instructors: state.instructors.filter(
+              (instructor) => instructor.id !== id
+            ),
+          }));
+          return true;
+        } catch (error) {
+          console.error("Error deleting instructor:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return false;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      toggleInstructorStatus: async (id: string) => {
+        try {
+          set({ isLoading: true, error: null });
+          const response = await fetch(`/api/instructors/${id}/status`, {
+            method: "PATCH",
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(
+              errorData.error?.message ||
+                errorData.message ||
+                "Error toggling instructor status"
+            );
+          }
+
+          const data = await response.json();
+          set((state) => ({
+            instructors: state.instructors.map((instructor) =>
+              instructor.id === id
+                ? { ...instructor, isActive: data.data.isActive }
+                : instructor
+            ),
+          }));
+          return true;
+        } catch (error) {
+          console.error("Error toggling instructor status:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return false;
         } finally {
           set({ isLoading: false });
         }

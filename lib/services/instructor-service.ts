@@ -106,6 +106,37 @@ export class InstructorService extends BaseService<Instructor> {
     return this.delete(id);
   }
 
+  // Toggle instructor status
+  async toggleInstructorStatus(id: string): Promise<ApiResponse<Instructor>> {
+    return this.withErrorHandling(async () => {
+      // Get current instructor
+      const currentResponse = await this.findById(id);
+      if (!currentResponse.success || !currentResponse.data) {
+        throw new ValidationError("Instructor not found");
+      }
+
+      const currentInstructor = currentResponse.data;
+
+      // Toggle the status
+      const updatedData = {
+        isActive: !currentInstructor.isActive,
+      };
+
+      // Update the instructor
+      const updateResponse = await this.update(id, updatedData);
+
+      if (updateResponse.success) {
+        console.log(
+          `[InstructorService] Instructor status toggled: ${id} (${
+            currentInstructor.isActive ? "active" : "inactive"
+          } -> ${updatedData.isActive ? "active" : "inactive"})`
+        );
+      }
+
+      return updateResponse;
+    });
+  }
+
   // Get instructor statistics
   async getInstructorStats(): Promise<
     ApiResponse<{
@@ -128,10 +159,7 @@ export class InstructorService extends BaseService<Instructor> {
   // Validation hooks
 
   protected async validateCreateData(data: any): Promise<void> {
-    // Validate using generated schema
-    validateWithSchema(generatedSchemas.instructor, data);
-
-    // Additional business validation
+    // Validación básica y más permisiva para creación de instructores
     if (!data.firstName || data.firstName.trim().length === 0) {
       throw new ValidationError("First name is required", "firstName");
     }
@@ -140,8 +168,8 @@ export class InstructorService extends BaseService<Instructor> {
       throw new ValidationError("Last name is required", "lastName");
     }
 
-    if (!data.email || data.email.trim().length === 0) {
-      throw new ValidationError("Email is required", "email");
+    if (!data.email || !data.email.includes("@")) {
+      throw new ValidationError("Valid email is required", "email");
     }
 
     // Check for duplicate email

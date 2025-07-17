@@ -23,6 +23,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -48,6 +58,8 @@ export function InstructorsManager() {
     instructorsPagination,
     createInstructor,
     updateInstructorById,
+    deleteInstructorById,
+    toggleInstructorStatus,
   } = useBlackSheepStore();
 
   const { toast } = useToast();
@@ -65,6 +77,8 @@ export function InstructorsManager() {
     null
   );
   const [isAddingInstructor, setIsAddingInstructor] = useState(false);
+  const [deletingInstructor, setDeletingInstructor] =
+    useState<Instructor | null>(null);
 
   // Cargar disciplinas al montar el componente
   useEffect(() => {
@@ -143,17 +157,52 @@ export function InstructorsManager() {
     );
   };
 
-  const handleDeleteInstructor = (instructorId: string) => {
-    deleteInstructor(instructorId);
+  const handleDeleteInstructor = async (instructorId: string) => {
+    const result = await deleteInstructorById(instructorId);
+    if (result) {
+      toast({
+        title: "Instructor eliminado",
+        description: "El instructor se ha eliminado correctamente",
+      });
+      // Refrescar la lista después de eliminar
+      fetchInstructors(
+        page,
+        limit,
+        searchTerm,
+        roleFilter !== "todos" ? roleFilter : "",
+        activeFilter !== "todos" ? activeFilter : ""
+      );
+    } else {
+      toast({
+        title: "Error",
+        description: "Error al eliminar el instructor",
+        variant: "destructive",
+      });
+    }
+  };
 
-    // Refrescar la lista después de eliminar
-    fetchInstructors(
-      page,
-      limit,
-      searchTerm,
-      roleFilter !== "todos" ? roleFilter : "",
-      activeFilter !== "todos" ? activeFilter : ""
-    );
+  const handleToggleStatus = async (instructorId: string) => {
+    const result = await toggleInstructorStatus(instructorId);
+    if (result) {
+      toast({
+        title: "Estado actualizado",
+        description: "El estado del instructor se ha actualizado correctamente",
+      });
+      // Refrescar la lista después del cambio de estado
+      fetchInstructors(
+        page,
+        limit,
+        searchTerm,
+        roleFilter !== "todos" ? roleFilter : "",
+        activeFilter !== "todos" ? activeFilter : ""
+      );
+    } else {
+      toast({
+        title: "Error",
+        description: "Error al cambiar el estado del instructor",
+        variant: "destructive",
+      });
+    }
   };
 
   const InstructorForm = ({
@@ -192,7 +241,14 @@ export function InstructorsManager() {
 
     const handleSubmit = () => {
       if (!formData.firstName || !formData.lastName || !formData.email) return;
-      handleSaveInstructor(formData);
+
+      // Agregar campos requeridos que no están en el formulario
+      const instructorData = {
+        ...formData,
+        organizationId: "org_blacksheep_001", // ID de la organización
+      };
+
+      handleSaveInstructor(instructorData);
       onClose();
     };
 
@@ -533,6 +589,8 @@ export function InstructorsManager() {
                     <TableCell>
                       <Badge
                         variant={instructor.isActive ? "default" : "secondary"}
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleToggleStatus(instructor.id)}
                       >
                         {instructor.isActive ? "Activo" : "Inactivo"}
                       </Badge>
@@ -540,10 +598,12 @@ export function InstructorsManager() {
                     <TableCell>
                       <div className="flex gap-2">
                         <Dialog
-                          open={editingInstructor !== null}
-                          onOpenChange={(open) =>
-                            !open && setEditingInstructor(null)
-                          }
+                          open={editingInstructor?.id === instructor.id}
+                          onOpenChange={(open) => {
+                            if (!open) {
+                              setEditingInstructor(null);
+                            }
+                          }}
                         >
                           <DialogTrigger asChild>
                             <Button
@@ -570,7 +630,7 @@ export function InstructorsManager() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDeleteInstructor(instructor.id)}
+                          onClick={() => setDeletingInstructor(instructor)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -583,6 +643,40 @@ export function InstructorsManager() {
           </Table>
         </div>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deletingInstructor !== null}
+        onOpenChange={(open) => !open && setDeletingInstructor(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar instructor?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará permanentemente el
+              instructor{" "}
+              <strong>
+                {deletingInstructor?.firstName} {deletingInstructor?.lastName}
+              </strong>{" "}
+              y todos sus datos asociados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingInstructor) {
+                  handleDeleteInstructor(deletingInstructor.id);
+                  setDeletingInstructor(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

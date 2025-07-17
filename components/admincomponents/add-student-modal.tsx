@@ -45,9 +45,11 @@ interface AddStudentModalProps {
 // Función helper para crear el objeto studentData
 const createStudentData = (
   formData: {
-    name: string;
+    firstName: string;
+    lastName: string;
     email: string;
     phone: string;
+    status: string;
     emergencyContact?: string;
     notes?: string;
     formaDePago?: "contado" | "transferencia" | "debito" | "credito";
@@ -58,22 +60,23 @@ const createStudentData = (
   initialStudent?: FitCenterUserProfile
 ): Omit<FitCenterUserProfile, "id"> => {
   return {
-    firstName: formData.name.split(" ")[0] || "",
-    lastName: formData.name.split(" ").slice(1).join(" ") || "",
+    firstName: formData.firstName,
+    lastName: formData.lastName,
     email: formData.email,
     phone: formData.phone,
-    dateOfBirth: undefined,
-    gender: undefined,
+    // Remover campos undefined para evitar problemas de validación
+    ...(formData.emergencyContact && {
+      emergencyContact: formData.emergencyContact,
+    }),
+    ...(formData.notes && { notes: formData.notes }),
+    ...(formData.formaDePago && { formaDePago: formData.formaDePago }),
     avatarId: "avatar_default",
-    address: undefined,
-    emergencyContact: formData.emergencyContact,
-    notes: formData.notes,
-    formaDePago: formData.formaDePago,
+    role: "user",
     membership: {
       id: initialStudent?.membership?.id || `mem_${Date.now()}`,
       organizationId: "org_blacksheep_001",
       organizationName: "BlackSheep CrossFit",
-      status: "active",
+      status: formData.status as any,
       membershipType: selectedPlan.name,
       monthlyPrice: selectedPlan.price,
       startDate: formData.joinDate,
@@ -134,7 +137,8 @@ export function AddStudentModal({
   const [open, setOpen] = useState(false);
 
   const createInitialFormData = (student?: FitCenterUserProfile) => ({
-    name: student ? `${student.firstName} ${student.lastName}` : "",
+    firstName: student?.firstName || "",
+    lastName: student?.lastName || "",
     email: student?.email || "",
     phone: student?.phone || "",
     status: student?.membership?.status || "active",
@@ -233,11 +237,16 @@ export function AddStudentModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.phone || !selectedPlan) {
+    if (
+      !formData.firstName ||
+      !formData.lastName ||
+      !formData.email ||
+      !formData.phone ||
+      !selectedPlan
+    ) {
       return;
     }
 
-    // const studentData = createStudentData(
     const studentData = createStudentData(
       formData,
       selectedPlan,
@@ -281,18 +290,39 @@ export function AddStudentModal({
           <div className="flex-1 overflow-y-auto space-y-6 pr-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="name">Nombre Completo *</Label>
+                <Label htmlFor="firstName">Nombre *</Label>
                 <Input
-                  id="name"
-                  value={formData.name}
+                  id="firstName"
+                  value={formData.firstName}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      firstName: e.target.value,
+                    }))
                   }
-                  placeholder="Nombre completo"
+                  placeholder="Nombre"
                   required
                 />
               </div>
 
+              <div>
+                <Label htmlFor="lastName">Apellido *</Label>
+                <Input
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      lastName: e.target.value,
+                    }))
+                  }
+                  placeholder="Apellido"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="email">Email *</Label>
                 <Input
@@ -306,9 +336,7 @@ export function AddStudentModal({
                   required
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="phone">Teléfono *</Label>
                 <Input
@@ -321,6 +349,21 @@ export function AddStudentModal({
                   required
                 />
               </div>
+            </div>
+
+            {/* Divider entre información personal y membresía */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Información de Membresía
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               {plans.length > 0 && (
                 <div>
                   <Label htmlFor="plan">Plan *</Label>
@@ -349,9 +392,7 @@ export function AddStudentModal({
                   </Select>
                 </div>
               )}
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="formaDePago">Forma de Pago</Label>
                 <Select
@@ -453,6 +494,49 @@ export function AddStudentModal({
                   <SelectItem value="user">Alumno</SelectItem>
                   <SelectItem value="coach">Coach</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="membershipStatus">Estado de Membresía</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    status: value as
+                      | "active"
+                      | "suspended"
+                      | "inactive"
+                      | "expired"
+                      | "frozen"
+                      | "pending",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">
+                    Activo - Puede usar todos los servicios
+                  </SelectItem>
+                  <SelectItem value="suspended">
+                    Suspendido - No puede reservar clases nuevas
+                  </SelectItem>
+                  <SelectItem value="frozen">
+                    Congelado - Membresía pausada temporalmente
+                  </SelectItem>
+                  <SelectItem value="inactive">
+                    Inactivo - Membresía cancelada
+                  </SelectItem>
+                  <SelectItem value="expired">
+                    Expirado - Necesita renovar
+                  </SelectItem>
+                  <SelectItem value="pending">
+                    Pendiente - Esperando aprobación
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

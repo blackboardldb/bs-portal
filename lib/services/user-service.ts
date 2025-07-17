@@ -314,8 +314,18 @@ export class UserService extends BaseService<FitCenterUserProfile> {
   // Validation hooks
 
   protected async validateCreateData(data: any): Promise<void> {
-    // Validate using generated schema
-    validateWithSchema(generatedSchemas.user, data);
+    // Validación básica y más permisiva para creación de usuarios
+    if (!data.firstName || data.firstName.trim().length === 0) {
+      throw new ValidationError("First name is required", "firstName");
+    }
+
+    if (!data.lastName || data.lastName.trim().length === 0) {
+      throw new ValidationError("Last name is required", "lastName");
+    }
+
+    if (!data.email || !data.email.includes("@")) {
+      throw new ValidationError("Valid email is required", "email");
+    }
 
     // Additional business validation
     if (data.email) {
