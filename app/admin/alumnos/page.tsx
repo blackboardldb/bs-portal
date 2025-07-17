@@ -209,12 +209,10 @@ export default function AlumnosPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead>Email</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Último Pago</TableHead>
-                <TableHead>Próximo Pago</TableHead>
-                <TableHead>Acciones</TableHead>
+                <TableHead>Validez</TableHead>
+                <TableHead>Editar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -229,13 +227,7 @@ export default function AlumnosPage() {
                       <Skeleton className="h-4 w-32" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
                       <Skeleton className="h-6 w-16 rounded-full" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-20" />
@@ -248,7 +240,7 @@ export default function AlumnosPage() {
               ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={5}
                     className="text-center py-8 text-muted-foreground"
                   >
                     {totalItems === 0
@@ -276,34 +268,34 @@ export default function AlumnosPage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{student.email}</TableCell>
-                    <TableCell>{student.membership?.membershipType}</TableCell>
+                    <TableCell>
+                      <span className="font-medium">
+                        {student.membership?.membershipType || "Sin plan"}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       {getStatusBadge(student.membership?.status || "inactive")}
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="font-medium">
-                          {formatDate(student.membership?.currentPeriodStart)}
+                        <div className="text-sm">
+                          {formatDate(student.membership?.currentPeriodStart)} -{" "}
+                          {formatDate(student.membership?.currentPeriodEnd)}
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {student.formaDePago || "-"}
+                        <div className="text-xs text-muted-foreground">
+                          Forma de pago:{" "}
+                          {student.formaDePago || "Sin especificar"}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {formatDate(student.membership?.currentPeriodEnd)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditStudent(student)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditStudent(student)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

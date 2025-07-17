@@ -518,8 +518,6 @@ export function InstructorsManager() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Teléfono</TableHead>
                 <TableHead>Especialidades</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Acciones</TableHead>
@@ -537,12 +535,6 @@ export function InstructorsManager() {
                       <Skeleton className="h-4 w-40" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-28" />
-                    </TableCell>
-                    <TableCell>
                       <Skeleton className="h-6 w-16 rounded-full" />
                     </TableCell>
                     <TableCell>
@@ -553,7 +545,7 @@ export function InstructorsManager() {
               ) : instructors.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={4}
                     className="text-center py-8 text-muted-foreground"
                   >
                     {instructorsPagination?.total === 0
@@ -567,19 +559,37 @@ export function InstructorsManager() {
                     <TableCell className="font-medium">
                       {instructor.firstName} {instructor.lastName}
                     </TableCell>
-                    <TableCell>{instructor.email}</TableCell>
-                    <TableCell>{instructor.phone || "-"}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {instructor.specialties?.map((specialty: string) => (
-                          <Badge
-                            key={specialty}
-                            variant="secondary"
-                            className="text-xs"
-                          >
-                            {specialty}
-                          </Badge>
-                        )) || (
+                        {instructor.specialties?.length > 0 ? (
+                          instructor.specialties.map((specialtyId: string) => {
+                            const discipline = disciplines?.find(
+                              (d) => d.id === specialtyId
+                            );
+                            return discipline ? (
+                              <div
+                                key={specialtyId}
+                                className="flex items-center gap-1"
+                              >
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: discipline.color }}
+                                />
+                                <span className="text-sm">
+                                  {discipline.name}
+                                </span>
+                              </div>
+                            ) : (
+                              <Badge
+                                key={specialtyId}
+                                variant="secondary"
+                                className="text-xs"
+                              >
+                                {specialtyId}
+                              </Badge>
+                            );
+                          })
+                        ) : (
                           <span className="text-muted-foreground text-sm">
                             Sin especialidades
                           </span>

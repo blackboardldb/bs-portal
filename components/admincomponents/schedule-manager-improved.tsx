@@ -360,131 +360,133 @@ export default function ScheduleManagerImproved() {
             </CardContent>
           </Card>
         ) : (
-          disciplines?.map((d) => (
-            <Card key={d.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-4 h-4 rounded-full"
-                      style={{ background: d.color || "#ccc" }}
-                    />
-                    <CardTitle className="text-lg">{d.name}</CardTitle>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => handleEditDiscipline(d)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      onClick={() => handleDeleteDiscipline(d.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                {!d.isActive && (
-                  <Badge variant="secondary" className="w-fit">
-                    Inactiva
-                  </Badge>
-                )}
-              </CardHeader>
-
-              <CardContent className="pt-0">
-                {d.description && (
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {d.description}
-                  </p>
-                )}
-
-                <div className="space-y-2">
+          disciplines
+            ?.filter((d) => d && d.id)
+            .map((d) => (
+              <Card key={d.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Horarios:</span>
-                      {d.schedule.length > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          {d.schedule.length} día
-                          {d.schedule.length !== 1 ? "s" : ""}
-                        </Badge>
-                      )}
+                      <span
+                        className="w-4 h-4 rounded-full"
+                        style={{ background: d.color || "#ccc" }}
+                      />
+                      <CardTitle className="text-lg">{d.name}</CardTitle>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleDisciplineExpansion(d.id)}
-                      className="text-xs"
-                    >
-                      {expandedDisciplines.has(d.id)
-                        ? "Ocultar"
-                        : "Ver horarios"}
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => handleEditDiscipline(d)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        onClick={() => handleDeleteDiscipline(d.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
+                  {!d.isActive && (
+                    <Badge variant="secondary" className="w-fit">
+                      Inactiva
+                    </Badge>
+                  )}
+                </CardHeader>
 
-                  {expandedDisciplines.has(d.id) && (
-                    <>
-                      {d.schedule.length === 0 ? (
-                        <span className="text-xs text-muted-foreground ml-6">
-                          Sin horarios configurados
-                        </span>
-                      ) : (
-                        <div className="ml-6 space-y-1">
-                          {d.schedule.map((s) => (
-                            <div
-                              key={s.day}
-                              className="flex items-center gap-2"
-                            >
-                              <span className="text-xs font-medium w-12">
-                                {dayLabels[s.day]}
-                              </span>
-                              <div className="flex flex-wrap gap-1">
-                                {s.times.map((t) => (
-                                  <Badge
-                                    key={t}
-                                    variant="outline"
-                                    className="text-xs"
-                                  >
-                                    {t}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                <CardContent className="pt-0">
+                  {d.description && (
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {d.description}
+                    </p>
+                  )}
 
-                      {d.cancellationRules.length > 0 && (
-                        <div className="mt-3 pt-3 border-t">
-                          <div className="flex items-center gap-2 mb-2">
-                            <AlertTriangle className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">
-                              Reglas de cancelación:
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1 ml-6">
-                            {d.cancellationRules.map((r) => (
-                              <Badge
-                                key={r.id}
-                                variant="outline"
-                                className="text-xs"
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Horarios:</span>
+                        {d.schedule.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            {d.schedule.length} día
+                            {d.schedule.length !== 1 ? "s" : ""}
+                          </Badge>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleDisciplineExpansion(d.id)}
+                        className="text-xs"
+                      >
+                        {expandedDisciplines.has(d.id)
+                          ? "Ocultar"
+                          : "Ver horarios"}
+                      </Button>
+                    </div>
+
+                    {expandedDisciplines.has(d.id) && (
+                      <>
+                        {d.schedule.length === 0 ? (
+                          <span className="text-xs text-muted-foreground ml-6">
+                            Sin horarios configurados
+                          </span>
+                        ) : (
+                          <div className="ml-6 space-y-1">
+                            {d.schedule.map((s) => (
+                              <div
+                                key={s.day}
+                                className="flex items-center gap-2"
                               >
-                                {r.time} - {r.hoursBefore}h
-                              </Badge>
+                                <span className="text-xs font-medium w-12">
+                                  {dayLabels[s.day]}
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {s.times.map((t) => (
+                                    <Badge
+                                      key={t}
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {t}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
                             ))}
                           </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                        )}
+
+                        {d.cancellationRules.length > 0 && (
+                          <div className="mt-3 pt-3 border-t">
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">
+                                Reglas de cancelación:
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 ml-6">
+                              {d.cancellationRules.map((r) => (
+                                <Badge
+                                  key={r.id}
+                                  variant="outline"
+                                  className="text-xs"
+                                >
+                                  {r.time} - {r.hoursBefore}h
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
         )}
       </div>
 
