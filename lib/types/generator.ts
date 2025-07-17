@@ -183,7 +183,7 @@ export function createMembershipPlanSchema() {
     id: z.string(),
     organizationId: z.string(),
     name: z.string().min(1, "Plan name is required"),
-    description: z.string(),
+    description: z.string().optional(),
     price: z.number().min(0),
     durationInMonths: z.number().min(0.5),
     classLimit: z.number().min(0),

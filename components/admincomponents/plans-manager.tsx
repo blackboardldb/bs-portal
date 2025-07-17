@@ -39,7 +39,7 @@ import {
 const emptyPlan: Omit<MembershipPlan, "id" | "organizationId"> = {
   name: "",
   description: "",
-  price: 0,
+  price: "" as any, // Permitir string vacío para el input
   durationInMonths: 1,
   classLimit: 8,
   disciplineAccess: "all",
@@ -209,9 +209,19 @@ export default function PlansManager() {
       return;
     }
 
+    // Convertir precio a número si es string
+    const planData = {
+      ...planForm,
+      price:
+        typeof planForm.price === "string"
+          ? Number(planForm.price)
+          : planForm.price,
+      organizationId: "org_blacksheep_001", // ID de la organización
+    };
+
     if (editingPlan) {
       // Actualizar plan existente
-      const result = await updatePlanById(editingPlan, planForm);
+      const result = await updatePlanById(editingPlan, planData);
       if (result) {
         toast({
           title: "Plan actualizado",
@@ -226,7 +236,7 @@ export default function PlansManager() {
       }
     } else {
       // Crear nuevo plan
-      const result = await createPlan(planForm);
+      const result = await createPlan(planData);
       if (result) {
         toast({
           title: "Plan agregado",
@@ -511,8 +521,9 @@ export default function PlansManager() {
                   type="number"
                   value={planForm.price}
                   onChange={handlePlanChange}
-                  placeholder="0"
+                  placeholder="Ingresa el precio"
                   min="0"
+                  step="1"
                 />
               </div>
             </div>

@@ -28,24 +28,23 @@ function getCancellationRule(
   };
 
   // Check if discipline has specific rules
-  if (discipline.cancellationRules?.rules) {
-    const specificRule = discipline.cancellationRules.rules.find(
+  if (
+    discipline.cancellationRules &&
+    Array.isArray(discipline.cancellationRules)
+  ) {
+    const specificRule = discipline.cancellationRules.find(
       (rule) => rule.time === classTime
     );
     if (specificRule) {
       return {
         hoursBefore: specificRule.hoursBefore,
-        reason: specificRule.description || "Regla específica de cancelación",
+        reason: `Regla específica: ${specificRule.hoursBefore}h antes para clase de ${specificRule.time}`,
       };
     }
   }
 
-  // Return default rule or discipline default
-  return {
-    hoursBefore:
-      discipline.cancellationRules?.defaultHours || defaultRule.hoursBefore,
-    reason: defaultRule.reason,
-  };
+  // Return default rule
+  return defaultRule;
 }
 
 /**

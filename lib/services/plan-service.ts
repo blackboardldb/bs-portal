@@ -109,8 +109,13 @@ export class PlanService extends BaseService<MembershipPlan> {
   // Validation hooks
 
   protected async validateCreateData(data: any): Promise<void> {
-    // Validate using generated schema
-    validateWithSchema(generatedSchemas.membershipPlan, data);
+    // Validate using create schema (without id, createdAt, updatedAt)
+    const createSchema = generatedSchemas.membershipPlan.omit({
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+    });
+    validateWithSchema(createSchema, data);
 
     // Additional business validation
     if (!data.name || data.name.trim().length === 0) {

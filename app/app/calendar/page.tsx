@@ -164,6 +164,25 @@ export default function CalendarPage() {
   // Lógica para generar y fusionar clases - OPTIMIZADA para solo 3 semanas
   const unifiedClasses = useMemo(() => {
     if (!disciplines || disciplines.length === 0) return classSessions;
+    if (!currentUser) return classSessions;
+
+    // Filtrar disciplinas según el plan del usuario
+    const allowedDisciplines = (() => {
+      if (!currentUser.membership) return disciplines;
+
+      const { disciplineAccess, allowedDisciplines: userAllowedDisciplines } =
+        currentUser.membership.planConfig;
+
+      if (disciplineAccess === "all") {
+        return disciplines;
+      } else if (disciplineAccess === "limited" && userAllowedDisciplines) {
+        return disciplines.filter((discipline) =>
+          userAllowedDisciplines.includes(discipline.id)
+        );
+      }
+
+      return disciplines;
+    })();
 
     const generatedClasses: ClassSession[] = [];
 
@@ -188,7 +207,8 @@ export default function CalendarPage() {
 
     daysInRange.forEach((day) => {
       const dayOfWeek = dayMapping[getDay(day)];
-      disciplines.forEach((discipline) => {
+      // Usar solo las disciplinas permitidas para el usuario
+      allowedDisciplines.forEach((discipline) => {
         const scheduleForDay = discipline.schedule?.find(
           (s) => s.day === dayOfWeek
         );
