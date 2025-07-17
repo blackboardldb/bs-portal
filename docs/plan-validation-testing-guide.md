@@ -1,291 +1,175 @@
-# Guía de Validación y Testing del Sistema de Renovación de Planes
+# Plan Status Validation Testing Guide
 
-## Resumen del Sistema
+## Overview
 
-El sistema de renovación de planes maneja tres estados principales para los usuarios:
+This guide explains how the plan status validation works and how to test different scenarios.
 
-- **Active**: Plan activo, puede inscribirse en clases
-- **Expired**: Plan expirado, debe renovar para continuar
-- **Pending**: Plan en validación, esperando aprobación del admin
+## Plan Status Logic Priority
 
-## Estados del Plan y Comportamiento
+The `getPlanStatus` function follows this priority order:
 
-### 1. Estado ACTIVE
+1. **No membership** → `expired`
+2. **Pending renewal** → `pending`
+3. **Explicit pending status** → `pending`
+4. **Automatic expiration conditions** → `expired` (HIGHEST PRIORITY)
+   - Date has passed
+   - No classes remaining
+5. **Admin explicit expired status** → `expired` (only if not automatically expired)
+6. **Default** → `active`
 
-- ✅ Usuario puede ver y registrarse en clases
-- ✅ Botones de inscripción habilitados
-- ✅ Muestra progreso de clases completadas
-- ✅ Acceso completo al calendario
+## Testing Scenarios
 
-### 2. Estado EXPIRED
-
-- ❌ Usuario NO puede registrarse en clases
-- 🔴 Botones de inscripción deshabilitados con opacity reducida
-- 📱 Mensaje: "Renueva tu plan para inscribirte"
-- 🔄 Botón "Renovar" visible en HomePage y calendario
-
-### 3. Estado PENDING
-
-- ❌ Usuario NO puede registrarse en clases
-- 🟡 Botones de inscripción deshabilitados con opacity reducida
-- 📱 Mensaje: "Plan pendiente de validación"
-- ⏳ Banner informativo: "Pronto podrás reservar clases"
-
-## Flujo de Renovación
-
-### Paso 1: Detección de Expiración
-
-El sistema detecta automáticamente cuando un plan expira por:
-
-- **Fecha**: `currentPeriodEnd < fecha actual`
-- **Clases**: `remainingClasses <= 0`
-
-### Paso 2: Proceso de Renovación
-
-1. Usuario hace clic en "Renovar" → `/app/renovar-plan`
-2. Selecciona nuevo plan y método de pago
-3. Hace clic en "Solicitar Renovación"
-4. Sistema crea `pendingRenewal` en el usuario
-5. Estado cambia a "pending"
-6. Redirección a `/app` con mensaje de confirmación
-
-### Paso 3: Validación Admin
-
-- Admin revisa solicitud en panel administrativo
-- Aprueba o rechaza la renovación
-- Si aprueba: estado → "active"
-- Si rechaza: estado → "expired"
-
-## Componentes y Responsabilidades
-
-### HomePage (`components/HomePage.tsx`)
-
-- Muestra estado del plan con badges apropiados
-- Renderiza mensajes contextuales según estado
-- Botones de acción (Renovar, Gestionar clases)
-
-### Calendar (`app/app/calendar/page.tsx`)
-
-- Banner informativo para estados no-activos
-- Validación antes de permitir registro
-- Mensajes de error específicos por estado
-
-### ClassCard (`components/ClassCard.tsx`)
-
-- Botones deshabilitados para estados no-activos
-- Mensajes informativos en la parte inferior
-- Opacity reducida para indicar no disponibilidad
-
-### RenewalPage (`app/app/renovar-plan/page.tsx`)
-
-- Formulario de selección de plan y pago
-- Validación completa antes de envío
-- Manejo de errores y estados de carga
-
-## Testing Manual
-
-### Caso 1: Plan Activo
+### Scenario 1: Normal Active Plan
 
 ```javascript
-// Simular usuario con plan activo
-const activeUser = {
+const user = {
   membership: {
     status: "active",
-    currentPeriodEnd: "2025-02-28", // Fecha futura
+    currentPeriodEnd: "2025-12-31", // Future date
     centerStats: {
       currentMonth: {
-        remainingClasses: 5, // Clases disponibles
+        remainingClasses: 5, // Has classes
+      },
+    },
+  },
+};
+// Result: "active" ✅
+```
+
+### Scenario 2: Classes Consumed (Automatic Expiration)
+
+```javascript
+const user = {
+  membership: {
+    status: "active", // Admin hasn't changed it
+    currentPeriodEnd: "2025-12-31", // Future date
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 0, // ❌ No classes left
+      },
+    },
+  },
+};
+// Result: "expired" ✅ (automatic expiration takes priority)
+```
+
+### Scenario 3: Admin Manual Expiration
+
+```javascript
+const user = {
+  membership: {
+    status: "expired", // ❌ Admin marked as expired
+    currentPeriodEnd: "2025-12-31", // Future date
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 5, // Still has classes
+      },
+    },
+  },
+};
+// Result: "expired" ✅ (admin override respected)
+```
+
+### Scenario 4: Admin Override Prevention
+
+```javascript
+const user = {
+  membership: {
+    status: "active", // Admin tries to keep active
+    currentPeriodEnd: "2025-01-10", // ❌ Date passed
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 5, // Has classes but date expired
+      },
+    },
+  },
+};
+// Result: "expired" ✅ (automatic expiration prevents admin error)
+```
+
+## Benefits of This Logic
+
+### 1. **Prevents Admin Errors**
+
+- Admins can't accidentally mark expired plans as active
+- System automatically detects real expiration conditions
+
+### 2. **Respects Admin Decisions**
+
+- Admins can expire plans early for business reasons
+- Manual expiration is respected when not conflicting with reality
+
+### 3. **Consistent User Experience**
+
+- Users can't register for classes when truly expired
+- Clear messaging about expiration reasons
+
+### 4. **Automatic State Management**
+
+- Plans expire automatically when conditions are met
+- No manual intervention needed for normal expiration
+
+## Testing Commands
+
+```bash
+# Run plan status tests
+npm test -- __tests__/utils/plan-status.test.ts
+
+# Run integration tests
+npm test -- __tests__/integration/plan-categorization-integration.test.ts
+```
+
+## Mock Data Testing
+
+To test different scenarios, modify the user's membership in `lib/mock-data.ts`:
+
+```javascript
+// Test expired by admin
+export const antoniaOvejeroProfile = {
+  // ...
+  membership: {
+    status: "expired", // Admin marked as expired
+    currentPeriodEnd: "2025-12-31", // Future date
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 5, // Still has classes
+      },
+    },
+  },
+};
+
+// Test expired by classes
+export const antoniaOvejeroProfile = {
+  // ...
+  membership: {
+    status: "active", // Normal status
+    currentPeriodEnd: "2025-12-31", // Future date
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 0, // No classes left
       },
     },
   },
 };
 ```
 
-**Resultado esperado:**
+## Expected Behaviors
 
-- ✅ Puede inscribirse en clases
-- ✅ Botones habilitados
-- ✅ Sin mensajes de restricción
+### When Plan is Expired (any reason):
 
-### Caso 2: Plan Expirado por Fecha
+- ❌ Cannot register for classes
+- ✅ Shows "Plan expirado" banner in calendar
+- ✅ Shows "Renovar" button in home
+- ✅ Redirects to renewal flow
 
-```javascript
-// Simular usuario con plan expirado
-const expiredUser = {
-  membership: {
-    status: "active",
-    currentPeriodEnd: "2025-01-15", // Fecha pasada
-    centerStats: {
-      currentMonth: {
-        remainingClasses: 3,
-      },
-    },
-  },
-};
-```
+### When Plan is Pending:
 
-**Resultado esperado:**
+- ❌ Cannot register for classes
+- ✅ Shows "Plan pendiente de validación" banner
+- ✅ Shows WhatsApp contact button
 
-- ❌ NO puede inscribirse en clases
-- 🔴 Botones deshabilitados
-- 📱 Mensaje: "Expiró el [fecha]"
+### When Plan is Active:
 
-### Caso 3: Plan Expirado por Clases
-
-```javascript
-// Simular usuario sin clases restantes
-const noClassesUser = {
-  membership: {
-    status: "active",
-    currentPeriodEnd: "2025-02-28", // Fecha futura
-    centerStats: {
-      currentMonth: {
-        remainingClasses: 0, // Sin clases
-      },
-    },
-  },
-};
-```
-
-**Resultado esperado:**
-
-- ❌ NO puede inscribirse en clases
-- 🔴 Botones deshabilitados
-- 📱 Mensaje: "Sin clases disponibles"
-
-### Caso 4: Plan Pendiente
-
-```javascript
-// Simular usuario con renovación pendiente
-const pendingUser = {
-  membership: {
-    status: "active",
-    pendingRenewal: {
-      status: "pending",
-      requestDate: "2025-01-16T10:00:00Z",
-    },
-  },
-};
-```
-
-**Resultado esperado:**
-
-- ❌ NO puede inscribirse en clases
-- 🟡 Banner amarillo: "Plan pendiente de validación"
-- 📱 Mensaje: "Pronto podrás reservar clases"
-
-## Debugging y Troubleshooting
-
-### Problema: Renovación no funciona
-
-**Síntomas:** Al hacer clic en "Solicitar Renovación" no pasa nada
-
-**Verificar:**
-
-1. Console del navegador para errores
-2. Estado del store: `useBlackSheepStore.getState()`
-3. Función `requestPlanRenewal` en el store
-4. Datos del usuario actual
-
-**Solución común:**
-
-```javascript
-// Verificar en console del navegador
-console.log("Current user:", currentUser);
-console.log("Selected plan:", selectedPlanId);
-console.log("Payment method:", selectedPayment);
-```
-
-### Problema: Botones no se deshabilitan
-
-**Síntomas:** Usuario con plan expirado puede hacer clic en "Inscribirse"
-
-**Verificar:**
-
-1. Función `getPlanStatus()` retorna estado correcto
-2. Props `canRegister` y `planStatus` se pasan correctamente
-3. Lógica en `ClassCard` para deshabilitar botones
-
-**Solución:**
-
-```javascript
-// En ClassCard, verificar estas variables
-console.log("Can register:", canRegister);
-console.log("Plan status:", planStatus);
-console.log("Can register for class:", canRegisterForClass);
-```
-
-### Problema: Estados inconsistentes
-
-**Síntomas:** UI muestra un estado pero comportamiento es otro
-
-**Verificar:**
-
-1. Sincronización entre componentes
-2. Estado del store actualizado correctamente
-3. Re-renders después de cambios de estado
-
-**Solución:**
-
-```javascript
-// Forzar re-fetch de datos
-await fetchUsers();
-```
-
-## Consideraciones de Rendimiento
-
-### Estados Dependientes en Tarjetas
-
-Como mencionaste, hay múltiples estados dependientes en las tarjetas de clases. La implementación actual es robusta pero compleja:
-
-**Pros:**
-
-- ✅ Feedback inmediato al usuario
-- ✅ Estados claros y específicos
-- ✅ Buena experiencia de usuario
-
-**Contras:**
-
-- ⚠️ Complejidad en el manejo de estados
-- ⚠️ Múltiples puntos de fallo
-- ⚠️ Debugging más difícil
-
-**Alternativa Simplificada:**
-Si la complejidad causa problemas, se podría simplificar a:
-
-- Mostrar clases solo si `planStatus === "active"`
-- Ocultar completamente las clases para estados no-activos
-- Mostrar solo mensaje informativo
-
-```javascript
-// Implementación simplificada
-if (planStatus !== "active") {
-  return <div>Plan no activo - Renueva para ver clases</div>;
-}
-```
-
-## Logs y Monitoreo
-
-### Logs Importantes
-
-```javascript
-// En getPlanStatus()
-console.log("Plan status calculated:", status, "for user:", user.id);
-
-// En requestPlanRenewal()
-console.log("Renewal requested:", { userId, planId, paymentMethod });
-
-// En ClassCard
-console.log("Button state:", { canRegister, planStatus, isRegistered });
-```
-
-### Métricas a Monitorear
-
-- Tasa de renovaciones exitosas vs fallidas
-- Tiempo promedio en estado "pending"
-- Errores más comunes en el flujo de renovación
-- Usuarios que abandonan el proceso de renovación
-
-## Conclusión
-
-El sistema actual es robusto y maneja bien los diferentes estados. La complejidad está justificada por la mejor experiencia de usuario. Si surgen problemas, la documentación de debugging debería ayudar a identificar y resolver issues rápidamente.
+- ✅ Can register for classes
+- ✅ Shows progress bar and stats
+- ✅ Shows "Gestionar clases" button

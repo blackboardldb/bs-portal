@@ -387,8 +387,20 @@ export function getPlanStatus(user: any): "active" | "expired" | "pending" {
     return "expired";
   }
 
-  // Si el plan expiró por fecha O por clases agotadas
-  if (now > endDate || remainingClasses <= 0) {
+  // Verificar condiciones automáticas de expiración (fecha o clases agotadas)
+  const isExpiredByDate = now > endDate;
+  const isExpiredByClasses = remainingClasses <= 0;
+  const isAutomaticallyExpired = isExpiredByDate || isExpiredByClasses;
+
+  // Si está automáticamente expirado, siempre devolver expired
+  // (esto previene que un admin marque como "active" algo que realmente está expirado)
+  if (isAutomaticallyExpired) {
+    return "expired";
+  }
+
+  // Si el estado de la membresía es explícitamente expired (admin override)
+  // Solo se respeta si NO está automáticamente expirado
+  if (user.membership.status === "expired") {
     return "expired";
   }
 
@@ -714,4 +726,159 @@ export function toTimeString(date: Date | string): string {
   return `${String(dateObj.getHours()).padStart(2, "0")}:${String(
     dateObj.getMinutes()
   ).padStart(2, "0")}`;
+}
+
+// ===== FUNCIONES DE CATEGORIZACIÓN DE PLANES =====
+
+/**
+ * Tipos para categorización de planes
+ */
+export type PlanCategory = "monthly" | "extended";
+
+export interface PlanCategoryInfo {
+  key: PlanCategory;
+  label: string;
+  description: string;
+  durations: number[];
+}
+
+/**
+ * Configuración de categorías de planes
+ */
+export const PLAN_CATEGORIES: PlanCategoryInfo[] = [
+  {
+    key: "monthly",
+    label: "Planes Mensuales",
+    description: "Planes de corto plazo y flexibles",
+    durations: [0.5, 1], // quincenal, mensual
+  },
+  {
+    key: "extended",
+    label: "Planes Extendidos",
+    description: "Planes de largo plazo con mejor valor",
+    durations: [3, 6, 12], // trimestral, semestral, anual
+  },
+];
+
+/**
+ * Categoriza un plan basado en su duración
+ * @param durationInMonths - Duración del plan en meses
+ * @returns Categoría del plan
+ */
+export function categorizePlan(durationInMonths: number): PlanCategory {
+  // Buscar en qué categoría encaja la duración
+  for (const category of PLAN_CATEGORIES) {
+    if (category.durations.includes(durationInMonths)) {
+      return category.key;
+    }
+  }
+
+  // Por defecto, duraciones no reconocidas van a 'extended'
+  return "extended";
+}
+
+/**
+ * Obtiene información de todas las categorías disponibles
+ * @returns Array con información de categorías
+ */
+export function getPlanCategories(): PlanCategoryInfo[] {
+  return PLAN_CATEGORIES;
+}
+
+/**
+ * Agrupa planes por categoría
+ * @param plans - Array de planes de membresía
+ * @returns Objeto con planes agrupados por categoría
+ */
+export function groupPlansByCategory<T extends { durationInMonths: number }>(
+  plans: T[]
+): Record<PlanCategory, T[]> {
+  const grouped: Record<PlanCategory, T[]> = {
+    monthly: [],
+    extended: [],
+  };
+
+  plans.forEach((plan) => {
+    const category = categorizePlan(plan.durationInMonths);
+    grouped[category].push(plan);
+  });
+
+  return grouped;
+}
+
+/**
+ * Obtiene información de una categoría específica
+ * @param category - Clave de la categoría
+ * @returns Información de la categoría o null si no existe
+ */
+export function getCategoryInfo(
+  category: PlanCategory
+): PlanCategoryInfo | null {
+  return PLAN_CATEGORIES.find((cat) => cat.key === category) || null;
+}
+
+/**
+ * Obtiene el label de una categoría
+ * @param category - Clave de la categoría
+ * @returns Label de la categoría
+ */
+export function getCategoryLabel(category: PlanCategory): string {
+  const info = getCategoryInfo(category);
+  return info?.label || category;
+}
+
+/**
+ * Verifica si una duración pertenece a una categoría específica
+ * @param durationInMonths - Duración en meses
+ * @param category - Categoría a verificar
+ * @returns true si la duración pertenece a la categoría
+ */
+export function isDurationInCategory(
+  durationInMonths: number,
+  category: PlanCategory
+): boolean {
+  const categoryInfo = getCategoryInfo(category);
+  return categoryInfo?.durations.includes(durationInMonths) || false;
+}
+
+/**
+ * Filtra planes por categoría
+ * @param plans - Array de planes
+ * @param category - Categoría a filtrar
+ * @returns Planes que pertenecen a la categoría especificada
+ */
+export function filterPlansByCategory<T extends { durationInMonths: number }>(
+  plans: T[],
+  category: PlanCategory
+): T[] {
+  return plans.filter(
+    (plan) => categorizePlan(plan.durationInMonths) === category
+  );
+}
+
+/**
+ * Obtiene estadísticas de categorización de planes
+ * @param plans - Array de planes
+ * @returns Estadísticas por categoría
+ */
+export function getPlanCategoryStats<T extends { durationInMonths: number }>(
+  plans: T[]
+): Record<PlanCategory, { count: number; percentage: number }> {
+  const grouped = groupPlansByCategory(plans);
+  const total = plans.length;
+
+  const stats: Record<PlanCategory, { count: number; percentage: number }> = {
+    monthly: {
+      count: grouped.monthly.length,
+      percentage:
+        total > 0 ? Math.round((grouped.monthly.length / total) * 100) : 0,
+    },
+    extended: {
+      count: grouped.extended.length,
+      percentage:
+        total > 0 ? Math.round((grouped.extended.length / total) * 100) : 0,
+    },
+  };
+
+  return stats;
 }

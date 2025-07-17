@@ -814,7 +814,17 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           if (!response.ok) throw new Error("Failed to fetch plans");
 
           const data = await response.json();
-          set({ plans: data.data });
+          console.log("API response for fetchPlans:", data);
+
+          // Handle different response structures
+          const plans = data.data || data.plans || data || [];
+
+          // Ensure all plans have required properties
+          const validPlans = plans.filter(
+            (plan: any) => plan && plan.id && plan.name
+          );
+
+          set({ plans: validPlans });
         } catch (error) {
           console.error("Error fetching plans:", error);
           set({ plans: [] });
@@ -836,10 +846,19 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           }
 
           const data = await response.json();
+          console.log("API response for createPlan:", data);
+
+          // Handle different response structures
+          const newPlan = data.data || data.plan || data;
+
+          if (!newPlan || !newPlan.id) {
+            throw new Error("Invalid plan data received from API");
+          }
+
           set((state) => ({
-            plans: [...state.plans, data.plan],
+            plans: [...(state.plans || []), newPlan],
           }));
-          return data.plan;
+          return newPlan;
         } catch (error) {
           console.error("Error creating plan:", error);
           set({
@@ -866,12 +885,21 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           }
 
           const data = await response.json();
+          console.log("API response for updatePlan:", data);
+
+          // Handle different response structures
+          const updatedPlan = data.data || data.plan || data;
+
+          if (!updatedPlan || !updatedPlan.id) {
+            throw new Error("Invalid plan data received from API");
+          }
+
           set((state) => ({
             plans: state.plans.map((plan) =>
-              plan.id === id ? { ...plan, ...data.plan } : plan
+              plan.id === id ? { ...plan, ...updatedPlan } : plan
             ),
           }));
-          return data.plan;
+          return updatedPlan;
         } catch (error) {
           console.error("Error updating plan:", error);
           set({

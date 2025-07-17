@@ -22,7 +22,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { useToast } from "@/components/ui/use-toast";
-import { calcularClasesSegunDuracion } from "@/lib/utils";
+import {
+  calcularClasesSegunDuracion,
+  filterPlansByCategory,
+  type PlanCategory,
+} from "@/lib/utils";
 import type { MembershipPlan } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,9 +35,9 @@ import {
   Trash2,
   CreditCard,
   Calendar,
-  Users,
-  Settings,
   Search,
+  Receipt,
+  CalendarCheck,
 } from "lucide-react";
 
 const emptyPlan: Omit<MembershipPlan, "id" | "organizationId"> = {
@@ -69,6 +73,7 @@ export default function PlansManager() {
     disciplines,
     createPlan,
     updatePlanById,
+    fetchDisciplines,
   } = useBlackSheepStore();
   const { toast } = useToast();
 
@@ -85,6 +90,7 @@ export default function PlansManager() {
   // Estados para filtros y búsqueda
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("todos");
+  const [durationFilter, setDurationFilter] = useState("todos");
 
   useEffect(() => {
     const loadData = async () => {
@@ -96,12 +102,16 @@ export default function PlansManager() {
           searchTerm,
           activeFilter !== "todos" ? activeFilter : ""
         );
+        // También cargar disciplinas si no están disponibles
+        if (!disciplines || disciplines.length === 0) {
+          await fetchDisciplines();
+        }
       } finally {
         setIsLoading(false);
       }
     };
     loadData();
-  }, [fetchPlans, searchTerm, activeFilter]);
+  }, [fetchPlans, searchTerm, activeFilter, disciplines]);
 
   // --- Gestión de planes ---
   const handleNewPlan = () => {
@@ -200,6 +210,7 @@ export default function PlansManager() {
   );
 
   const handleSavePlan = async () => {
+    // Validación básica
     if (!planForm.name || !planForm.price) {
       toast({
         title: "Error",
@@ -209,58 +220,99 @@ export default function PlansManager() {
       return;
     }
 
-    // Convertir precio a número si es string
-    const planData = {
-      ...planForm,
-      price:
-        typeof planForm.price === "string"
-          ? Number(planForm.price)
-          : planForm.price,
-      organizationId: "org_blacksheep_001", // ID de la organización
-    };
-
-    if (editingPlan) {
-      // Actualizar plan existente
-      const result = await updatePlanById(editingPlan, planData);
-      if (result) {
-        toast({
-          title: "Plan actualizado",
-          description: "El plan se ha actualizado correctamente",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Error al actualizar el plan",
-          variant: "destructive",
-        });
-      }
-    } else {
-      // Crear nuevo plan
-      const result = await createPlan(planData);
-      if (result) {
-        toast({
-          title: "Plan agregado",
-          description: "El plan se ha agregado correctamente",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Error al agregar el plan",
-          variant: "destructive",
-        });
-      }
+    // Validación de precio
+    const priceValue =
+      typeof planForm.price === "string"
+        ? Number(planForm.price)
+        : planForm.price;
+    if (isNaN(priceValue) || priceValue < 0) {
+      toast({
+        title: "Error",
+        description: "El precio debe ser un número válido mayor o igual a 0",
+        variant: "destructive",
+      });
+      return;
     }
 
-    // Refrescar la lista después de agregar/editar
-    fetchPlans(1, 50, searchTerm, activeFilter !== "todos" ? activeFilter : "");
+    // Validación de límite de clases
+    if (planForm.classLimit < 0) {
+      toast({
+        title: "Error",
+        description: "El límite de clases debe ser mayor o igual a 0",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setShowPlanModal(false);
-    setPlanForm(emptyPlan);
-    setEditingPlan(null);
+    try {
+      // Preparar datos del plan con validación
+      const planData = {
+        name: planForm.name.trim(),
+        description: planForm.description.trim(),
+        price: priceValue,
+        durationInMonths: Number(planForm.durationInMonths),
+        classLimit: Number(planForm.classLimit),
+        disciplineAccess: planForm.disciplineAccess,
+        allowedDisciplines: planForm.allowedDisciplines || [],
+        canFreeze: planForm.canFreeze,
+        freezeDurationDays: Number(planForm.freezeDurationDays),
+        autoRenews: planForm.autoRenews,
+        isActive: planForm.isActive,
+        organizationId: "org_blacksheep_001",
+      };
+
+      console.log("Saving plan data:", planData);
+
+      let result;
+      if (editingPlan) {
+        // Actualizar plan existente
+        result = await updatePlanById(editingPlan, planData);
+        if (result) {
+          toast({
+            title: "Plan actualizado",
+            description: "El plan se ha actualizado correctamente",
+          });
+        }
+      } else {
+        // Crear nuevo plan
+        result = await createPlan(planData);
+        if (result) {
+          toast({
+            title: "Plan agregado",
+            description: "El plan se ha agregado correctamente",
+          });
+        }
+      }
+
+      if (result) {
+        // Refrescar la lista después de agregar/editar
+        await fetchPlans(
+          1,
+          50,
+          searchTerm,
+          activeFilter !== "todos" ? activeFilter : ""
+        );
+
+        // Cerrar modal y limpiar formulario
+        setShowPlanModal(false);
+        setPlanForm(emptyPlan);
+        setEditingPlan(null);
+      }
+    } catch (error) {
+      console.error("Error saving plan:", error);
+      toast({
+        title: "Error al guardar plan",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Error desconocido al guardar el plan",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Header con gestión de planes */}
       <div className="flex items-center justify-between">
         <div>
@@ -275,7 +327,7 @@ export default function PlansManager() {
       </div>
 
       {/* Filtros de búsqueda */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row  gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
@@ -295,10 +347,20 @@ export default function PlansManager() {
             <SelectItem value="false">Inactivo</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={durationFilter} onValueChange={setDurationFilter}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Filtrar por duración" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todas las duraciones</SelectItem>
+            <SelectItem value="monthly">Planes Mensuales</SelectItem>
+            <SelectItem value="extended">Planes Extendidos</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Lista de planes */}
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {isLoading ? (
           // Skeleton simplificado para cards de planes
           Array.from({ length: 3 }).map((_, i) => (
@@ -353,134 +415,144 @@ export default function PlansManager() {
             </CardContent>
           </Card>
         ) : (
-          plans?.map((plan) => (
-            <Card key={plan.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-blue-500" />
-                    <CardTitle className="text-lg">{plan.name}</CardTitle>
-                    {!plan.isActive && (
-                      <Badge variant="secondary" className="ml-2">
-                        Inactivo
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => handleEditPlan(plan)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      onClick={() => handleDeletePlan(plan.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="pt-0">
-                {plan.description && (
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {plan.description}
-                  </p>
-                )}
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
+          plans
+            ?.filter((plan) => plan && plan.id && plan.name)
+            .filter((plan) => {
+              // Apply duration filter
+              if (durationFilter === "todos") return true;
+              if (
+                durationFilter === "monthly" ||
+                durationFilter === "extended"
+              ) {
+                return (
+                  filterPlansByCategory([plan], durationFilter as PlanCategory)
+                    .length > 0
+                );
+              }
+              return true;
+            })
+            .map((plan) => (
+              <Card key={plan.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-1">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Duración</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {plan.durationInMonths === 0.5
-                        ? "Quincenal"
-                        : plan.durationInMonths === 1
-                        ? "1 mes"
-                        : `${plan.durationInMonths} meses`}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Clases</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {plan.classLimit === 0
-                        ? "Ilimitadas"
-                        : `${calcularClasesSegunDuracion(
-                            plan.classLimit,
-                            plan.durationInMonths
-                          )} clases totales`}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Precio</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      ${plan.price.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {plan.disciplineAccess === "all"
-                          ? "Todas las disciplinas"
-                          : "Disciplinas limitadas"}
-                      </Badge>
-                    </div>
-
-                    {plan.disciplineAccess === "limited" &&
-                      plan.allowedDisciplines &&
-                      plan.allowedDisciplines.length > 0 && (
-                        <div>
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Disciplinas incluidas:
-                          </span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {plan.allowedDisciplines.map((disciplineId) => {
-                              const discipline = disciplines?.find(
-                                (d) => d.id === disciplineId
-                              );
-                              if (!discipline) return null;
-
-                              return (
-                                <Badge
-                                  key={disciplineId}
-                                  variant="outline"
-                                  className="text-xs"
-                                >
-                                  <span
-                                    className="w-2 h-2 rounded-full mr-1"
-                                    style={{
-                                      background: discipline.color || "#ccc",
-                                    }}
-                                  />
-                                  {discipline.name}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        </div>
+                      <CreditCard className="w-5 h-5 text-blue-500" />
+                      <CardTitle className="text-lg">{plan.name}</CardTitle>
+                      {!plan.isActive && (
+                        <Badge variant="secondary" className="ml-2">
+                          Oculto
+                        </Badge>
                       )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => handleEditPlan(plan)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        onClick={() => handleDeletePlan(plan.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardHeader>
+
+                <CardContent className="pt-0">
+                  {plan.description && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {plan.description}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-start gap-4">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+
+                      <p className="text-sm text-muted-foreground">
+                        {plan.durationInMonths === 0.5
+                          ? "Quincenal"
+                          : plan.durationInMonths === 1
+                          ? "1 mes"
+                          : `${plan.durationInMonths} meses`}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <CalendarCheck className="w-4 h-4 text-muted-foreground" />
+
+                      <p className="text-sm text-muted-foreground">
+                        {plan.classLimit === 0
+                          ? "Ilimitadas"
+                          : `${calcularClasesSegunDuracion(
+                              plan.classLimit,
+                              plan.durationInMonths
+                            )} clases totales`}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Receipt className="w-4 h-4 text-muted-foreground" />
+
+                      <p className="text-sm text-muted-foreground">
+                        ${plan.price.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {plan.disciplineAccess === "all"
+                            ? "Todas las disciplinas"
+                            : "Disciplinas limitadas"}
+                        </Badge>
+                      </div>
+
+                      {plan.disciplineAccess === "limited" &&
+                        plan.allowedDisciplines &&
+                        plan.allowedDisciplines.length > 0 && (
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground">
+                              Disciplinas incluidas:
+                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {plan.allowedDisciplines.map((disciplineId) => {
+                                const discipline = disciplines?.find(
+                                  (d) => d.id === disciplineId
+                                );
+                                if (!discipline) return null;
+
+                                return (
+                                  <Badge
+                                    key={disciplineId}
+                                    variant="outline"
+                                    className="text-xs"
+                                  >
+                                    <span
+                                      className="w-2 h-2 rounded-full mr-1"
+                                      style={{
+                                        background: discipline.color || "#ccc",
+                                      }}
+                                    />
+                                    {discipline.name}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
         )}
       </div>
 
@@ -609,32 +681,42 @@ export default function PlansManager() {
                     Selecciona las disciplinas incluidas en este plan:
                   </Label>
                   <div className="flex flex-wrap gap-2">
-                    {disciplines
-                      .filter((d) => d.isActive)
-                      .map((discipline) => (
-                        <Badge
-                          key={discipline.id}
-                          variant={
-                            planForm.allowedDisciplines.includes(discipline.id)
-                              ? "default"
-                              : "outline"
-                          }
-                          className={`cursor-pointer ${
-                            planForm.allowedDisciplines.includes(discipline.id)
-                              ? "bg-blue-500 text-white"
-                              : "hover:bg-blue-50"
-                          }`}
-                          onClick={() => toggleDiscipline(discipline.id)}
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full mr-2"
-                            style={{
-                              background: discipline.color || "#ccc",
-                            }}
-                          />
-                          {discipline.name}
-                        </Badge>
-                      ))}
+                    {!disciplines || disciplines.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Cargando disciplinas...
+                      </p>
+                    ) : (
+                      disciplines
+                        .filter((d) => d.isActive)
+                        .map((discipline) => (
+                          <Badge
+                            key={discipline.id}
+                            variant={
+                              planForm.allowedDisciplines.includes(
+                                discipline.id
+                              )
+                                ? "default"
+                                : "outline"
+                            }
+                            className={`cursor-pointer transition-colors ${
+                              planForm.allowedDisciplines.includes(
+                                discipline.id
+                              )
+                                ? "bg-blue-500 text-white hover:bg-blue-600"
+                                : "hover:bg-blue-50 hover:border-blue-300"
+                            }`}
+                            onClick={() => toggleDiscipline(discipline.id)}
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full mr-2"
+                              style={{
+                                background: discipline.color || "#ccc",
+                              }}
+                            />
+                            {discipline.name}
+                          </Badge>
+                        ))
+                    )}
                   </div>
                 </div>
               )}
@@ -644,9 +726,12 @@ export default function PlansManager() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-base font-medium">Plan activo</Label>
+                  <Label className="text-base font-medium">
+                    Visible para usuarios
+                  </Label>
                   <p className="text-sm text-muted-foreground">
-                    Los usuarios pueden suscribirse a este plan
+                    Los usuarios pueden ver y seleccionar este plan al renovar.
+                    Si está desactivado, solo el admin puede asignarlo.
                   </p>
                 </div>
                 <Switch

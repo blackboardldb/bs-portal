@@ -450,7 +450,7 @@ export const antoniaOvejeroProfile: FitCenterUserProfile = {
     id: "mem_blacksheep_antonia",
     organizationId: "org_blacksheep_001",
     organizationName: "BlackSheep CrossFit",
-    status: "pending",
+    status: "expired",
     membershipType: "Básico",
     planId: "plan_basico_001",
     monthlyPrice: 35000,

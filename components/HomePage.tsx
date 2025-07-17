@@ -101,17 +101,14 @@ const HomePage: React.FC<HomePageProps> = ({
           </div>
         ) : planStatus === "pending" ? (
           <div className="border-t border-zinc-700 pt-3 space-y-3">
-            <div className="flex items-center gap-2 text-yellow-400">
-              <Clock size={16} />
-              <p className="text-sm font-medium">Pendiente validación</p>
-            </div>
             <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-3">
-              <p className="text-yellow-200 text-sm mb-2">
-                Tu solicitud de renovación está siendo revisada.
-              </p>
-              <p className="text-yellow-300 text-xs">
-                Escríbenos para validar tu plan o avisa a tu coach de forma
-                presencial.
+              <div className="flex items-center gap-2 text-yellow-100 text-xl">
+                <Clock size={16} />
+                <p className="font-medium">Pendiente validación</p>
+              </div>
+              <p className="text-yellow-100  mb-2">
+                Debemos validar tu solicitud de renovación. Escríbenos para
+                validar tu plan o avisa a tu coach de forma presencial.
               </p>
               <Link
                 href="https://wa.me/56912345678"
@@ -121,7 +118,7 @@ const HomePage: React.FC<HomePageProps> = ({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-yellow-400 border-yellow-400 hover:bg-yellow-400 hover:text-black"
+                  className="text-black bg-yellow-300 hover:bg-yellow-400 border-yellow-600"
                 >
                   Contactar por WhatsApp
                 </Button>
@@ -163,7 +160,7 @@ const HomePage: React.FC<HomePageProps> = ({
           </Link>
         ) : planStatus === "pending" ? (
           <span className="text-yellow-400 text-sm font-semibold">
-            Pronto podrás reservar clases
+            por validar
           </span>
         ) : (
           <Link href="/app/renovar-plan">
@@ -189,11 +186,8 @@ const HomePage: React.FC<HomePageProps> = ({
               </p>
             ) : planStatus === "pending" ? (
               <div className="space-y-2">
-                <p className="text-yellow-400 text-base font-medium">
+                <p className="text-zinc-400 text-base font-medium">
                   Pronto podrás reservar tus clases
-                </p>
-                <p className="text-gray-400 text-sm">
-                  Tu plan está siendo validado por nuestro equipo
                 </p>
               </div>
             ) : (

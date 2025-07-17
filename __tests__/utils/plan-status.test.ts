@@ -103,6 +103,41 @@ describe("Plan Status Logic", () => {
       expect(getPlanStatus(user)).toBe("pending");
     });
 
+    it("should return 'expired' when membership status is explicitly expired", () => {
+      const user = createMockUser({
+        status: "expired",
+        currentPeriodEnd: "2025-12-31", // Even with future date
+        centerStats: {
+          currentMonth: {
+            classesAttended: 2,
+            classesContracted: 12,
+            remainingClasses: 10, // Even with remaining classes
+            noShows: 0,
+            lastMinuteCancellations: 0,
+          },
+        },
+      });
+      expect(getPlanStatus(user)).toBe("expired");
+    });
+
+    it("should prioritize automatic expiration over admin status", () => {
+      // Admin tries to set as "active" but user has no classes left
+      const user = createMockUser({
+        status: "active", // Admin set as active
+        currentPeriodEnd: "2025-12-31", // Future date
+        centerStats: {
+          currentMonth: {
+            classesAttended: 12,
+            classesContracted: 12,
+            remainingClasses: 0, // But no classes left
+            noShows: 0,
+            lastMinuteCancellations: 0,
+          },
+        },
+      });
+      expect(getPlanStatus(user)).toBe("expired"); // Should be expired due to no classes
+    });
+
     it("should return 'expired' when plan end date has passed", () => {
       const user = createMockUser({
         currentPeriodEnd: "2025-01-15", // Past date

@@ -10,6 +10,7 @@ import type { PendingRenewalRequest } from "../../../lib/types";
 import { useToast } from "../../../components/ui/use-toast";
 import { useErrorHandler } from "../../../lib/hooks/useErrorHandler";
 import { Banknote, CreditCard, ArrowLeft } from "lucide-react";
+import { groupPlansByCategory, getCategoryInfo } from "@/lib/utils";
 
 const PAYMENT_METHODS = [
   { id: "contado", name: "Contado", icon: Banknote },
@@ -259,37 +260,114 @@ export default function RenewPlanPage() {
                 </Button>
               </div>
             ) : (
-              <RadioGroup
-                value={selectedPlanId}
-                onValueChange={(id) => {
-                  setSelectedPlanId(id);
-                  setIsChangingPlan(false);
-                }}
-                className="space-y-2"
-              >
-                {(membershipPlans || [])
-                  .filter((p) => p.isActive)
-                  .map((plan) => (
-                    <Label
-                      key={plan.id}
-                      htmlFor={plan.id}
-                      className="flex items-center justify-between p-4 border rounded-lg cursor-pointer bg-white hover:bg-gray-50 has-[:checked]:bg-lime-100 has-[:checked]:border-lime-500 has-[:checked]:shadow-md transition-all duration-200"
-                    >
-                      <div>
-                        <p className="font-bold">{plan.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {plan.description}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="font-semibold">
-                          {formatPrice(plan.price)}
-                        </span>
-                        <RadioGroupItem value={plan.id} id={plan.id} />
-                      </div>
-                    </Label>
-                  ))}
-              </RadioGroup>
+              <div className="space-y-6">
+                <RadioGroup
+                  value={selectedPlanId}
+                  onValueChange={(id) => {
+                    setSelectedPlanId(id);
+                    setIsChangingPlan(false);
+                  }}
+                  className="space-y-6"
+                >
+                  {(() => {
+                    // Filter only active plans and group by category
+                    const activePlans = (membershipPlans || []).filter(
+                      (p) => p.isActive
+                    );
+                    const groupedPlans = groupPlansByCategory(activePlans);
+
+                    return (
+                      <>
+                        {/* Monthly Plans Category */}
+                        {groupedPlans.monthly.length > 0 && (
+                          <div>
+                            <div className="mb-4">
+                              <h3 className="text-lg font-semibold text-white mb-2">
+                                {getCategoryInfo("monthly")?.label}
+                              </h3>
+                              <p className="text-sm text-zinc-400 mb-4">
+                                {getCategoryInfo("monthly")?.description}
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              {groupedPlans.monthly.map((plan) => (
+                                <Label
+                                  key={plan.id}
+                                  htmlFor={plan.id}
+                                  className="flex items-center justify-between p-4 border rounded-lg cursor-pointer bg-white hover:bg-gray-50 has-[:checked]:bg-lime-100 has-[:checked]:border-lime-500 has-[:checked]:shadow-md transition-all duration-200"
+                                >
+                                  <div>
+                                    <p className="font-bold">{plan.name}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {plan.description}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <span className="font-semibold">
+                                      {formatPrice(plan.price)}
+                                    </span>
+                                    <RadioGroupItem
+                                      value={plan.id}
+                                      id={plan.id}
+                                    />
+                                  </div>
+                                </Label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Category Separator */}
+                        {groupedPlans.monthly.length > 0 &&
+                          groupedPlans.extended.length > 0 && (
+                            <div className="my-6">
+                              <div className="border-t border-zinc-700"></div>
+                            </div>
+                          )}
+
+                        {/* Extended Plans Category */}
+                        {groupedPlans.extended.length > 0 && (
+                          <div>
+                            <div className="mb-4">
+                              <h3 className="text-lg font-semibold text-white mb-2">
+                                {getCategoryInfo("extended")?.label}
+                              </h3>
+                              <p className="text-sm text-zinc-400 mb-4">
+                                {getCategoryInfo("extended")?.description}
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              {groupedPlans.extended.map((plan) => (
+                                <Label
+                                  key={plan.id}
+                                  htmlFor={plan.id}
+                                  className="flex items-center justify-between p-4 border rounded-lg cursor-pointer bg-white hover:bg-gray-50 has-[:checked]:bg-lime-100 has-[:checked]:border-lime-500 has-[:checked]:shadow-md transition-all duration-200"
+                                >
+                                  <div>
+                                    <p className="font-bold">{plan.name}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {plan.description}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <span className="font-semibold">
+                                      {formatPrice(plan.price)}
+                                    </span>
+                                    <RadioGroupItem
+                                      value={plan.id}
+                                      id={plan.id}
+                                    />
+                                  </div>
+                                </Label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </RadioGroup>
+              </div>
             )}
           </div>
           {/* Selección de Método de Pago */}
