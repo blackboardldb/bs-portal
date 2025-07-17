@@ -1,242 +1,291 @@
-# Guía de Validación y Pruebas de Planes
+# Guía de Validación y Testing del Sistema de Renovación de Planes
 
-Esta guía explica cómo validar que el sistema de planes funciona correctamente, incluyendo límites de clases, disciplinas permitidas y reglas de cancelación.
+## Resumen del Sistema
 
-## 🎯 Resumen de Funcionalidades
+El sistema de renovación de planes maneja tres estados principales para los usuarios:
 
-### 1. **Lógica de Clases por Duración**
+- **Active**: Plan activo, puede inscribirse en clases
+- **Expired**: Plan expirado, debe renovar para continuar
+- **Pending**: Plan en validación, esperando aprobación del admin
 
-- **Mensual**: `classLimit` clases por mes (ej: 8 clases/mes)
-- **Trimestral**: `classLimit × 3` clases totales (ej: 8 × 3 = 24 clases totales)
-- **Semestral**: `classLimit × 6` clases totales (ej: 8 × 6 = 48 clases totales)
-- **Anual**: `classLimit × 12` clases totales (ej: 8 × 12 = 96 clases totales)
+## Estados del Plan y Comportamiento
 
-### 2. **Filtrado de Disciplinas**
+### 1. Estado ACTIVE
 
-- **Plan completo** (`disciplineAccess: "all"`): Ve todas las disciplinas
-- **Plan limitado** (`disciplineAccess: "limited"`): Solo ve disciplinas incluidas en `allowedDisciplines`
+- ✅ Usuario puede ver y registrarse en clases
+- ✅ Botones de inscripción habilitados
+- ✅ Muestra progreso de clases completadas
+- ✅ Acceso completo al calendario
 
-### 3. **Validación de Registro**
+### 2. Estado EXPIRED
 
-- Verifica clases restantes (`remainingClasses`)
-- Respeta límites del plan
-- Aplica reglas de cancelación específicas por disciplina y horario
+- ❌ Usuario NO puede registrarse en clases
+- 🔴 Botones de inscripción deshabilitados con opacity reducida
+- 📱 Mensaje: "Renueva tu plan para inscribirte"
+- 🔄 Botón "Renovar" visible en HomePage y calendario
 
-## 🧪 Validación del Sistema
+### 3. Estado PENDING
 
-### **Punto 1: Verificar clases restantes (`remainingClasses`)**
+- ❌ Usuario NO puede registrarse en clases
+- 🟡 Botones de inscripción deshabilitados con opacity reducida
+- 📱 Mensaje: "Plan pendiente de validación"
+- ⏳ Banner informativo: "Pronto podrás reservar clases"
 
-**¿Dónde se valida?**
+## Flujo de Renovación
 
-- **Archivo**: `lib/validation-service.ts` líneas 112-120
-- **API**: `app/api/classes/[id]/register/route.ts` líneas 42-50
+### Paso 1: Detección de Expiración
 
-**¿Cómo probarlo?**
+El sistema detecta automáticamente cuando un plan expira por:
 
-1. **Crear un usuario con pocas clases restantes**:
+- **Fecha**: `currentPeriodEnd < fecha actual`
+- **Clases**: `remainingClasses <= 0`
 
-   ```javascript
-   // En mock-data.ts, buscar un usuario y cambiar:
-   remainingClasses: 0; // Sin clases disponibles
-   ```
+### Paso 2: Proceso de Renovación
 
-2. **Intentar registrarse en una clase**:
+1. Usuario hace clic en "Renovar" → `/app/renovar-plan`
+2. Selecciona nuevo plan y método de pago
+3. Hace clic en "Solicitar Renovación"
+4. Sistema crea `pendingRenewal` en el usuario
+5. Estado cambia a "pending"
+6. Redirección a `/app` con mensaje de confirmación
 
-   - Debería mostrar: "No tienes clases disponibles en tu plan"
+### Paso 3: Validación Admin
 
-3. **Verificar que se descuenta correctamente**:
-   - Registrarse en una clase con `remainingClasses: 5`
-   - Después del registro debería quedar `remainingClases: 4`
+- Admin revisa solicitud en panel administrativo
+- Aprueba o rechaza la renovación
+- Si aprueba: estado → "active"
+- Si rechaza: estado → "expired"
 
-### **Punto 2: Respeta límites del plan**
+## Componentes y Responsabilidades
 
-**¿Dónde se valida?**
+### HomePage (`components/HomePage.tsx`)
 
-- **Archivo**: `lib/validation-service.ts` líneas 121-129
-- **Lógica**: Verifica `disciplineAccess` y `allowedDisciplines`
+- Muestra estado del plan con badges apropiados
+- Renderiza mensajes contextuales según estado
+- Botones de acción (Renovar, Gestionar clases)
 
-**¿Cómo probarlo?**
+### Calendar (`app/app/calendar/page.tsx`)
 
-1. **Crear un plan limitado**:
+- Banner informativo para estados no-activos
+- Validación antes de permitir registro
+- Mensajes de error específicos por estado
 
-   ```javascript
-   disciplineAccess: "limited",
-   allowedDisciplines: ["yoga", "pilates"]  // Solo estas disciplinas
-   ```
+### ClassCard (`components/ClassCard.tsx`)
 
-2. **Intentar registrarse en disciplina no permitida**:
+- Botones deshabilitados para estados no-activos
+- Mensajes informativos en la parte inferior
+- Opacity reducida para indicar no disponibilidad
 
-   - Intentar registrarse en "CrossFit"
-   - Debería mostrar: "Tu plan no incluye esta disciplina"
+### RenewalPage (`app/app/renovar-plan/page.tsx`)
 
-3. **Verificar en el calendario**:
-   - Solo debería ver clases de Yoga y Pilates
-   - No debería ver clases de otras disciplinas
+- Formulario de selección de plan y pago
+- Validación completa antes de envío
+- Manejo de errores y estados de carga
 
-### **Punto 3: Aplica reglas de cancelación específicas**
+## Testing Manual
 
-**¿Dónde se valida?**
-
-- **Archivo**: `lib/validation-service.ts` líneas 190-250
-- **API**: `app/api/classes/[id]/cancel/route.ts` líneas 51-57
-
-**¿Cómo probarlo?**
-
-1. **Crear reglas de cancelación específicas**:
-
-   ```javascript
-   // En una disciplina, agregar:
-   cancellationRules: [
-     { id: "rule1", time: "08:00", hoursBefore: 6 }, // 6h antes para clase de 8am
-     { id: "rule2", time: "18:00", hoursBefore: 2 }, // 2h antes para clase de 6pm
-   ];
-   ```
-
-2. **Probar cancelación dentro del plazo**:
-   - Registrarse en clase de 8:00am
-   - Intentar cancelar 4 horas antes → Debería fallar
-   - Intentar cancelar 8 horas antes → Debería funcionar
-
-## 🧪 Script de Prueba Automatizado
-
-Copia y pega este script en la consola del navegador (F12 → Console) en `http://localhost:3000`:
+### Caso 1: Plan Activo
 
 ```javascript
-// Script para probar la validación de registro
-async function testValidation() {
-  console.log("🧪 Iniciando pruebas de validación...");
-
-  // 1. Probar límite de clases
-  console.log("\n1️⃣ Probando límite de clases...");
-  try {
-    const response = await fetch("/api/classes/class_001/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "usr_antonia_abc123" }),
-    });
-    const result = await response.json();
-    console.log("Resultado:", result);
-  } catch (error) {
-    console.error("Error:", error);
-  }
-
-  // 2. Probar disciplina no permitida
-  console.log("\n2️⃣ Probando disciplina no permitida...");
-  try {
-    const response = await fetch("/api/classes/class_crossfit_001/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "usr_limited_plan" }),
-    });
-    const result = await response.json();
-    console.log("Resultado:", result);
-  } catch (error) {
-    console.error("Error:", error);
-  }
-
-  // 3. Probar reglas de cancelación
-  console.log("\n3️⃣ Probando reglas de cancelación...");
-  try {
-    const response = await fetch("/api/classes/class_001/cancel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "usr_antonia_abc123" }),
-    });
-    const result = await response.json();
-    console.log("Resultado:", result);
-  } catch (error) {
-    console.error("Error:", error);
-  }
-
-  console.log("\n✅ Pruebas completadas!");
-}
-
-// Ejecutar las pruebas
-testValidation();
+// Simular usuario con plan activo
+const activeUser = {
+  membership: {
+    status: "active",
+    currentPeriodEnd: "2025-02-28", // Fecha futura
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 5, // Clases disponibles
+      },
+    },
+  },
+};
 ```
 
-## 🎯 Pasos para Validación Manual
+**Resultado esperado:**
 
-### **Paso 1: Verificar en la UI**
+- ✅ Puede inscribirse en clases
+- ✅ Botones habilitados
+- ✅ Sin mensajes de restricción
 
-1. **Ir a** `http://localhost:3000/app/calendar`
-2. **Verificar** que solo aparezcan disciplinas del plan del usuario
-3. **Intentar registrarse** en una clase
-4. **Verificar mensajes** de error/éxito
+### Caso 2: Plan Expirado por Fecha
 
-### **Paso 2: Verificar en la consola del navegador**
+```javascript
+// Simular usuario con plan expirado
+const expiredUser = {
+  membership: {
+    status: "active",
+    currentPeriodEnd: "2025-01-15", // Fecha pasada
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 3,
+      },
+    },
+  },
+};
+```
 
-1. **Abrir DevTools** (F12)
-2. **Ir a Console**
-3. **Copiar y pegar** el script de prueba
-4. **Ejecutar** y ver los resultados
+**Resultado esperado:**
 
-### **Paso 3: Verificar en los datos**
+- ❌ NO puede inscribirse en clases
+- 🔴 Botones deshabilitados
+- 📱 Mensaje: "Expiró el [fecha]"
 
-1. **Revisar** `lib/mock-data.ts` para ver usuarios de prueba
-2. **Buscar** usuarios con diferentes planes:
-   - `usr_antonia_abc123` - Plan con clases limitadas
-   - Usuarios con `disciplineAccess: "limited"`
-3. **Verificar** que `remainingClasses` se actualice correctamente
+### Caso 3: Plan Expirado por Clases
 
-## 🔍 Resultados Esperados
+```javascript
+// Simular usuario sin clases restantes
+const noClassesUser = {
+  membership: {
+    status: "active",
+    currentPeriodEnd: "2025-02-28", // Fecha futura
+    centerStats: {
+      currentMonth: {
+        remainingClasses: 0, // Sin clases
+      },
+    },
+  },
+};
+```
 
-### **✅ Funcionando correctamente:**
+**Resultado esperado:**
 
-- Usuarios con clases restantes pueden registrarse
-- Usuarios sin clases restantes reciben error: "No tienes clases disponibles en tu plan"
-- Solo se muestran disciplinas del plan en el calendario
-- Disciplinas no permitidas muestran error: "Tu plan no incluye esta disciplina"
-- Reglas de cancelación se aplican correctamente con mensajes específicos
-- `remainingClasses` se descuenta automáticamente al registrarse
+- ❌ NO puede inscribirse en clases
+- 🔴 Botones deshabilitados
+- 📱 Mensaje: "Sin clases disponibles"
 
-### **❌ Si algo falla:**
+### Caso 4: Plan Pendiente
 
-- Mensajes de error claros en la UI
-- Logs en la consola del navegador
-- Respuestas de API con códigos de error apropiados (400, 404, 500)
+```javascript
+// Simular usuario con renovación pendiente
+const pendingUser = {
+  membership: {
+    status: "active",
+    pendingRenewal: {
+      status: "pending",
+      requestDate: "2025-01-16T10:00:00Z",
+    },
+  },
+};
+```
 
-## 📋 Checklist de Validación
+**Resultado esperado:**
 
-- [ ] **Límite de clases**: Usuario sin clases restantes no puede registrarse
-- [ ] **Descuento de clases**: `remainingClasses` se reduce al registrarse
-- [ ] **Disciplinas limitadas**: Solo aparecen disciplinas del plan en calendario
-- [ ] **Disciplinas no permitidas**: Error al intentar registrarse en disciplina no incluida
-- [ ] **Reglas de cancelación**: Se aplican correctamente según horario y disciplina
-- [ ] **Planes de larga duración**: Clases totales calculadas correctamente (trimestral, semestral, anual)
-- [ ] **Mensajes de error**: Claros y específicos para cada caso
-- [ ] **Transacciones**: Datos se actualizan correctamente en base de datos
+- ❌ NO puede inscribirse en clases
+- 🟡 Banner amarillo: "Plan pendiente de validación"
+- 📱 Mensaje: "Pronto podrás reservar clases"
 
-## 🛠️ Archivos Clave
+## Debugging y Troubleshooting
 
-### **Validación**
+### Problema: Renovación no funciona
 
-- `lib/validation-service.ts` - Lógica de validación principal
-- `lib/utils.ts` - Función `calcularClasesSegunDuracion()`
+**Síntomas:** Al hacer clic en "Solicitar Renovación" no pasa nada
 
-### **APIs**
+**Verificar:**
 
-- `app/api/classes/[id]/register/route.ts` - Registro en clases
-- `app/api/classes/[id]/cancel/route.ts` - Cancelación de clases
-- `app/api/plans/route.ts` - Gestión de planes
+1. Console del navegador para errores
+2. Estado del store: `useBlackSheepStore.getState()`
+3. Función `requestPlanRenewal` en el store
+4. Datos del usuario actual
 
-### **Frontend**
+**Solución común:**
 
-- `app/app/calendar/page.tsx` - Calendario con filtrado de disciplinas
-- `components/admincomponents/plans-manager.tsx` - Gestión de planes
+```javascript
+// Verificar en console del navegador
+console.log("Current user:", currentUser);
+console.log("Selected plan:", selectedPlanId);
+console.log("Payment method:", selectedPayment);
+```
 
-### **Datos**
+### Problema: Botones no se deshabilitan
 
-- `lib/mock-data.ts` - Usuarios y planes de prueba
-- `lib/types.ts` - Definiciones de tipos
+**Síntomas:** Usuario con plan expirado puede hacer clic en "Inscribirse"
 
-## 🚀 Próximos Pasos
+**Verificar:**
 
-1. **Ejecutar las pruebas** siguiendo esta guía
-2. **Verificar** que todos los puntos del checklist funcionen
-3. **Reportar** cualquier problema encontrado
-4. **Documentar** casos de uso adicionales si es necesario
+1. Función `getPlanStatus()` retorna estado correcto
+2. Props `canRegister` y `planStatus` se pasan correctamente
+3. Lógica en `ClassCard` para deshabilitar botones
 
----
+**Solución:**
 
-**Nota**: Esta guía asume que el servidor de desarrollo está ejecutándose en `http://localhost:3000`. Ajusta las URLs según tu configuración.
+```javascript
+// En ClassCard, verificar estas variables
+console.log("Can register:", canRegister);
+console.log("Plan status:", planStatus);
+console.log("Can register for class:", canRegisterForClass);
+```
+
+### Problema: Estados inconsistentes
+
+**Síntomas:** UI muestra un estado pero comportamiento es otro
+
+**Verificar:**
+
+1. Sincronización entre componentes
+2. Estado del store actualizado correctamente
+3. Re-renders después de cambios de estado
+
+**Solución:**
+
+```javascript
+// Forzar re-fetch de datos
+await fetchUsers();
+```
+
+## Consideraciones de Rendimiento
+
+### Estados Dependientes en Tarjetas
+
+Como mencionaste, hay múltiples estados dependientes en las tarjetas de clases. La implementación actual es robusta pero compleja:
+
+**Pros:**
+
+- ✅ Feedback inmediato al usuario
+- ✅ Estados claros y específicos
+- ✅ Buena experiencia de usuario
+
+**Contras:**
+
+- ⚠️ Complejidad en el manejo de estados
+- ⚠️ Múltiples puntos de fallo
+- ⚠️ Debugging más difícil
+
+**Alternativa Simplificada:**
+Si la complejidad causa problemas, se podría simplificar a:
+
+- Mostrar clases solo si `planStatus === "active"`
+- Ocultar completamente las clases para estados no-activos
+- Mostrar solo mensaje informativo
+
+```javascript
+// Implementación simplificada
+if (planStatus !== "active") {
+  return <div>Plan no activo - Renueva para ver clases</div>;
+}
+```
+
+## Logs y Monitoreo
+
+### Logs Importantes
+
+```javascript
+// En getPlanStatus()
+console.log("Plan status calculated:", status, "for user:", user.id);
+
+// En requestPlanRenewal()
+console.log("Renewal requested:", { userId, planId, paymentMethod });
+
+// En ClassCard
+console.log("Button state:", { canRegister, planStatus, isRegistered });
+```
+
+### Métricas a Monitorear
+
+- Tasa de renovaciones exitosas vs fallidas
+- Tiempo promedio en estado "pending"
+- Errores más comunes en el flujo de renovación
+- Usuarios que abandonan el proceso de renovación
+
+## Conclusión
+
+El sistema actual es robusto y maneja bien los diferentes estados. La complejidad está justificada por la mejor experiencia de usuario. Si surgen problemas, la documentación de debugging debería ayudar a identificar y resolver issues rápidamente.

@@ -106,7 +106,6 @@ export default function Page() {
   // Usar las estadísticas REALES del perfil del usuario en lugar de datos fijos
   const currentMonthStats = currentUser.membership.centerStats.currentMonth;
 
-  const planValid = currentUser.membership?.status === "active";
   const progressPercentage =
     currentMonthStats.classesContracted > 0
       ? (currentMonthStats.classesAttended /
@@ -142,7 +141,6 @@ export default function Page() {
         membershipType={membershipType}
         monthlyPrice={monthlyPrice}
         currentMonthStats={currentMonthStats}
-        planValid={planValid}
         progressPercentage={progressPercentage}
         formattedPeriodStart={formattedPeriodStart}
         formattedPeriodEnd={formattedPeriodEnd}

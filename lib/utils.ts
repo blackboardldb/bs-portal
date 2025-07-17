@@ -357,6 +357,107 @@ export function calcularClasesSegunDuracion(
   }
 }
 
+/**
+ * Determina el estado real del plan del usuario
+ * @param user - Usuario con membresía
+ * @returns Estado del plan: 'active', 'expired', 'pending'
+ */
+export function getPlanStatus(user: any): "active" | "expired" | "pending" {
+  // Si no hay usuario o membresía, está expirado
+  if (!user?.membership) return "expired";
+
+  // Si tiene renovación pendiente, el estado es pending
+  if (user.membership.pendingRenewal) {
+    return "pending";
+  }
+
+  // Si el estado de la membresía es explícitamente pending (usuarios nuevos)
+  if (user.membership.status === "pending") {
+    return "pending";
+  }
+
+  const now = new Date();
+  const endDate = new Date(user.membership.currentPeriodEnd);
+  const remainingClasses =
+    user.membership.centerStats.currentMonth.remainingClasses || 0;
+
+  // Validar si las fechas son válidas
+  if (isNaN(endDate.getTime())) {
+    console.warn("Invalid end date for user membership:", user.id);
+    return "expired";
+  }
+
+  // Si el plan expiró por fecha O por clases agotadas
+  if (now > endDate || remainingClasses <= 0) {
+    return "expired";
+  }
+
+  return "active";
+}
+
+/**
+ * Verifica si el usuario puede inscribirse en clases
+ * @param user - Usuario con membresía
+ * @returns true si puede inscribirse, false si no
+ */
+export function canUserRegisterForClasses(user: any): boolean {
+  const status = getPlanStatus(user);
+  return status === "active";
+}
+
+/**
+ * Obtiene el motivo de expiración del plan
+ * @param user - Usuario con membresía
+ * @returns Motivo de expiración o null si no está expirado
+ */
+export function getPlanExpirationReason(user: any): string | null {
+  if (!user?.membership) return "Sin membresía";
+
+  const status = getPlanStatus(user);
+  if (status !== "expired") return null;
+
+  const now = new Date();
+  const endDate = new Date(user.membership.currentPeriodEnd);
+  const remainingClasses =
+    user.membership.centerStats.currentMonth.remainingClasses || 0;
+
+  // Verificar si expiró por fecha
+  if (now > endDate) {
+    return "Plan expirado por fecha";
+  }
+
+  // Verificar si expiró por clases agotadas
+  if (remainingClasses <= 0) {
+    return "Sin clases disponibles";
+  }
+
+  return "Plan expirado";
+}
+
+/**
+ * Verifica si un plan necesita renovación
+ * @param user - Usuario con membresía
+ * @returns true si necesita renovación, false si no
+ */
+export function doesPlanNeedRenewal(user: any): boolean {
+  const status = getPlanStatus(user);
+  return status === "expired";
+}
+
+/**
+ * Obtiene días restantes hasta la expiración del plan
+ * @param user - Usuario con membresía
+ * @returns Número de días restantes (negativo si ya expiró)
+ */
+export function getDaysUntilPlanExpiration(user: any): number {
+  if (!user?.membership) return -1;
+
+  const endDate = new Date(user.membership.currentPeriodEnd);
+  if (isNaN(endDate.getTime())) return -1;
+
+  return daysUntil(endDate);
+}
+
 export function convertClassSessionToClassItem(
   session: any,
   disciplines: any[],

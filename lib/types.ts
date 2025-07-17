@@ -327,9 +327,40 @@ export interface DashboardStats {
 }
 
 export interface PendingRenewalRequest {
+  id?: string; // Unique identifier for the renewal request
   requestedPlanId: string;
   requestedPaymentMethod: "contado" | "transferencia" | "debito" | "credito";
   requestDate: string; // ISO 8601
+  status: "pending" | "approved" | "rejected";
+  requestedBy: string; // User ID who requested the renewal
+  processedBy?: string; // Admin ID who processed the request
+  processedDate?: string; // ISO 8601
+  notes?: string; // Admin notes about the renewal
+  previousPlanId?: string; // For tracking plan changes
+}
+
+// === TIPOS PARA SISTEMA DE RENOVACIÓN ===
+
+export type PlanStatus = "active" | "expired" | "pending";
+
+export type PaymentMethod = "contado" | "transferencia" | "debito" | "credito";
+
+export type RenewalStatus = "pending" | "approved" | "rejected";
+
+// Información de contacto para soporte
+export interface SupportContact {
+  whatsapp?: string;
+  email?: string;
+  phone?: string;
+}
+
+// Resultado de validación de renovación
+export interface RenewalValidation {
+  canRenew: boolean;
+  reason: string;
+  planStatus: PlanStatus;
+  expirationReason?: string;
+  daysUntilExpiration?: number;
 }
 
 // Tipo enriquecido para la vista de clases del admin

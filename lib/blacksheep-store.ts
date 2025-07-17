@@ -40,6 +40,7 @@ interface BlackSheepStore {
   instructors: Instructor[];
   instructorsPagination: PaginationState | null;
   plans: Plan[];
+  membershipPlans: Plan[];
   initialOrganization: Organization | null;
   classRegistrations: any[];
   membershipRenewals: any[];
@@ -148,6 +149,11 @@ interface BlackSheepStore {
   updateMembershipRenewal: (renewal: any) => void;
   deleteMembershipRenewal: (renewalId: string) => void;
   fetchMembershipRenewals: () => void;
+  requestPlanRenewal: (
+    userId: string,
+    planId: string,
+    paymentMethod: string
+  ) => Promise<void>;
 
   // Provider management actions
   switchProvider: (providerType: "mock" | "prisma") => Promise<boolean>;
@@ -165,6 +171,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       instructors: [],
       instructorsPagination: null,
       plans: [],
+      membershipPlans: initialPlans,
       initialOrganization: initialOrganization,
       classRegistrations: initialClassRegistrations,
       membershipRenewals: initialMembershipRenewals,
@@ -929,6 +936,59 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       fetchMembershipRenewals: () => {
         // In a real app, this would fetch from API
         set({ membershipRenewals: initialMembershipRenewals });
+      },
+
+      requestPlanRenewal: async (
+        userId: string,
+        planId: string,
+        paymentMethod: string
+      ) => {
+        try {
+          set({ isLoading: true, error: null });
+
+          // Create renewal request
+          const renewalRequest = {
+            id: `renewal_${Date.now()}`,
+            requestedPlanId: planId,
+            requestedPaymentMethod: paymentMethod as
+              | "contado"
+              | "transferencia"
+              | "debito"
+              | "credito",
+            requestDate: new Date().toISOString(),
+            status: "pending" as const,
+            requestedBy: userId,
+          };
+
+          // Update user with pending renewal
+          const { users } = get();
+          const updatedUsers = users.map((user) => {
+            if (user.id === userId) {
+              return {
+                ...user,
+                membership: {
+                  ...user.membership,
+                  pendingRenewal: renewalRequest,
+                },
+              };
+            }
+            return user;
+          });
+
+          // Add to membership renewals list
+          set((state) => ({
+            users: updatedUsers,
+            membershipRenewals: [...state.membershipRenewals, renewalRequest],
+          }));
+        } catch (error) {
+          console.error("Error requesting plan renewal:", error);
+          set({
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
       // Provider management actions

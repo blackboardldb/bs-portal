@@ -23,7 +23,12 @@ import { es } from "date-fns/locale";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClassSession, DayOfWeek, ClassStatus } from "@/lib/types";
-import { formatTimeLocal, formatWeekday } from "@/lib/utils";
+import {
+  formatTimeLocal,
+  formatWeekday,
+  getPlanStatus,
+  canUserRegisterForClasses,
+} from "@/lib/utils";
 
 interface FormattedClassItem {
   id: string;
@@ -72,6 +77,17 @@ export default function CalendarPage() {
     () => users.find((user) => user.id === "usr_antonia_abc123"),
     [users]
   );
+
+  // Verificar el estado del plan del usuario
+  const planStatus = useMemo(() => {
+    if (!currentUser) return "expired";
+    return getPlanStatus(currentUser);
+  }, [currentUser]);
+
+  const canRegisterForClasses = useMemo(() => {
+    if (!currentUser) return false;
+    return canUserRegisterForClasses(currentUser);
+  }, [currentUser]);
 
   // Función centralizada de conversión de datos - MEJORADA para manejar estados
   const convertClassSessionToFormattedItem = useCallback(
@@ -322,6 +338,46 @@ export default function CalendarPage() {
   const currentClasses = getClassesForDate(selectedDate);
 
   const handleRegister = (classItem: FormattedClassItem) => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "No se pudo identificar el usuario actual",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Verificar el estado del plan antes de permitir el registro
+    const planStatus = getPlanStatus(currentUser);
+
+    if (planStatus === "expired") {
+      toast({
+        title: "Plan expirado",
+        description: "Debes renovar tu plan para poder inscribirte en clases",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (planStatus === "pending") {
+      toast({
+        title: "Plan pendiente de validación",
+        description:
+          "Tu plan está siendo validado. Pronto podrás reservar clases.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!canUserRegisterForClasses(currentUser)) {
+      toast({
+        title: "No puedes registrarte",
+        description: "Tu plan actual no permite el registro en clases",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSelectedClass(classItem);
     setIsRegistrationModalOpen(true);
   };
@@ -483,6 +539,32 @@ export default function CalendarPage() {
       </div>
 
       <div className="bg-black">
+        {/* Plan Status Banner */}
+        {planStatus !== "active" && (
+          <div className="max-w-4xl mx-auto px-4 py-3 md:px-6">
+            {planStatus === "pending" ? (
+              <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-3 mb-4">
+                <p className="text-yellow-200 text-sm font-medium mb-1">
+                  Plan pendiente de validación
+                </p>
+                <p className="text-yellow-300 text-xs">
+                  Pronto podrás reservar tus clases. Tu plan está siendo
+                  validado por nuestro equipo.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-orange-900/20 border border-orange-600/30 rounded-lg p-3 mb-4">
+                <p className="text-orange-200 text-sm font-medium mb-1">
+                  Plan expirado
+                </p>
+                <p className="text-orange-300 text-xs">
+                  Renueva tu plan para poder inscribirte en clases.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <ClassList
           selectedDate={selectedDate}
           classes={getClassesForDate(selectedDate)}
@@ -490,6 +572,8 @@ export default function CalendarPage() {
           onCancel={handleCancel}
           className="max-w-4xl mx-auto min-h-svh pb-20 px-4 py-6 md:px-6 md:py-8"
           isLoading={isLoading}
+          canRegister={canRegisterForClasses}
+          planStatus={planStatus}
         />
       </div>
 

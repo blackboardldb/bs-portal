@@ -25,9 +25,17 @@ interface ClassCardProps {
   classItem: FormattedClassItem;
   onRegister: () => void;
   onCancel: () => void;
+  canRegister?: boolean;
+  planStatus?: "active" | "expired" | "pending";
 }
 
-export function ClassCard({ classItem, onRegister, onCancel }: ClassCardProps) {
+export function ClassCard({
+  classItem,
+  onRegister,
+  onCancel,
+  canRegister = true,
+  planStatus = "active",
+}: ClassCardProps) {
   // Validación de datos de entrada
   if (!classItem || !classItem.dateTime) {
     console.error("ClassCard: Datos de clase inválidos", classItem);
@@ -44,6 +52,16 @@ export function ClassCard({ classItem, onRegister, onCancel }: ClassCardProps) {
 
   // Determinar si se puede realizar acción
   const canPerformAction = !isCancelled && !isCompleted && !isInProgress;
+
+  // Determinar si se puede registrar basado en el estado del plan
+  const canRegisterForClass = canRegister && planStatus === "active";
+
+  // Para usuarios registrados, siempre pueden cancelar (si la clase lo permite)
+  const canCancelRegistration = isRegistered && canPerformAction;
+
+  // Para usuarios no registrados, solo pueden registrarse si el plan está activo
+  const canRegisterForNewClass =
+    !isRegistered && canPerformAction && canRegisterForClass;
 
   const handleAction = () => {
     if (isRegistered) {
@@ -114,12 +132,33 @@ export function ClassCard({ classItem, onRegister, onCancel }: ClassCardProps) {
           variant={isRegistered ? "destructive" : "default"}
           size="sm"
           onClick={handleAction}
-          className="flex-1"
-          disabled={!canPerformAction}
+          className={`flex-1 ${
+            !canRegisterForNewClass && !canCancelRegistration
+              ? "opacity-50 cursor-not-allowed"
+              : ""
+          }`}
+          disabled={!canCancelRegistration && !canRegisterForNewClass}
         >
           {isRegistered ? "Cancelar" : "Inscribirse"}
         </Button>
       </div>
+
+      {/* Mensaje informativo cuando no se puede registrar */}
+      {!canRegisterForClass && !isRegistered && canPerformAction && (
+        <div className="mt-2 text-xs text-center">
+          {planStatus === "pending" ? (
+            <span className="text-yellow-600">
+              Plan pendiente de validación
+            </span>
+          ) : planStatus === "expired" ? (
+            <span className="text-orange-600">
+              Renueva tu plan para inscribirte
+            </span>
+          ) : (
+            <span className="text-gray-500">No disponible</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

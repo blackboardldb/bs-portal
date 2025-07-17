@@ -26,6 +26,8 @@ interface ClassListProps {
   onCancel: (classItem: FormattedClassItem) => void;
   className?: string;
   isLoading?: boolean;
+  canRegister?: boolean;
+  planStatus?: "active" | "expired" | "pending";
 }
 
 export default function ClassList({
@@ -35,6 +37,8 @@ export default function ClassList({
   onCancel,
   className = "",
   isLoading = false,
+  canRegister = true,
+  planStatus = "active",
 }: ClassListProps) {
   // Función para formatear la fecha a un string legible
   const formatDate = (date: Date) => {
@@ -101,6 +105,8 @@ export default function ClassList({
               classItem={classItem}
               onRegister={() => onRegister(classItem)}
               onCancel={() => onCancel(classItem)}
+              canRegister={canRegister}
+              planStatus={planStatus}
             />
           ))
         ) : (
