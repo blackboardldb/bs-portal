@@ -590,13 +590,17 @@ export function getDayOfWeekShort(date: Date | string): string {
 }
 
 /**
- * Convierte una fecha a string YYYY-MM-DD
+ * Convierte una fecha a string YYYY-MM-DD en zona horaria local
  * @param date - Date object o string ISO
  * @returns String en formato YYYY-MM-DD
  */
 export function toDateString(date: Date | string): string {
   const dateObj = typeof date === "string" ? new Date(date) : date;
-  return dateObj.toISOString().split("T")[0];
+  // Usar zona horaria local en lugar de UTC para evitar problemas de corrimiento de fecha
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /**

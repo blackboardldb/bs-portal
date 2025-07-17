@@ -160,7 +160,11 @@ export function Calendar() {
 
   // CONTEXTO: Función helper para formatear fechas sin problemas de zona horaria
   const formatDateForDisplay = (dateString: string) => {
-    return formatDateLocal(dateString, {
+    // Crear fecha local para evitar problemas de zona horaria
+    const [year, month, day] = dateString.split("-").map(Number);
+    const localDate = new Date(year, month - 1, day); // month-1 porque Date usa 0-11
+
+    return formatDateLocal(localDate, {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -207,7 +211,7 @@ export function Calendar() {
             status: cls.status,
             discipline: discipline?.name || "Desconocida",
             disciplineId: cls.disciplineId,
-            date: cls.dateLocal || toDateString(cls.dateTime), // USAR FECHA LOCAL
+            date: cls.dateLocal || toDateString(new Date(cls.dateTime)), // USAR FECHA LOCAL
             time: toTimeString(cls.dateTime),
             color: discipline?.color || "#3b82f6",
             capacity: cls.capacity,
@@ -235,9 +239,9 @@ export function Calendar() {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
     // Para que el calendario se muestre correctamente, necesitamos los días que completan la primera y última semana.
-    // El `startOfWeek` por defecto considera el Domingo como inicio de semana, lo que coincide con `dayNames`.
-    const calendarStart = startOfWeek(monthStart);
-    const calendarEnd = endOfWeek(monthEnd);
+    // Configuramos para que la semana empiece en lunes (weekStartsOn: 1)
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
 
     const daysInGrid = eachDayOfInterval({
       start: calendarStart,
@@ -253,7 +257,11 @@ export function Calendar() {
 
   // CONTEXTO: Función para obtener clases de una fecha específica
   const getClassesForDate = (dateString: string) => {
-    return transformedClasses.filter((cls) => cls.date === dateString);
+    const filteredClasses = transformedClasses.filter(
+      (cls) => cls.date === dateString
+    );
+
+    return filteredClasses;
   };
 
   // CONTEXTO: Función para navegar entre meses
@@ -439,7 +447,7 @@ export function Calendar() {
     "Diciembre",
   ];
 
-  const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const dayNames = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
   // CONTEXTO: Opciones de tiempo para el formulario
   const timeOptions = [
@@ -619,7 +627,9 @@ export function Calendar() {
                 } ${isToday ? "bg-blue-50 border-blue-200" : ""} ${
                   allClassesPast ? "opacity-70" : ""
                 }`}
-                onClick={() => setSelectedDate(day.dateString)}
+                onClick={() => {
+                  setSelectedDate(day.dateString);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();

@@ -33,18 +33,17 @@ function generateClassesForDay(day: Date, disciplines: any[]): ClassSession[] {
       if (s.day === dayOfWeek) {
         s.times.forEach((time: string) => {
           const [hour, minute] = time.split(":");
-          // Crear fecha local pura (sin UTC)
-          const classDate = new Date(
+          // Crear fecha local usando createLocalDate para evitar problemas de zona horaria
+          const classDate = createLocalDate(
             day.getFullYear(),
-            day.getMonth(),
+            day.getMonth() + 1, // createLocalDate espera mes 1-12
             day.getDate(),
             parseInt(hour, 10),
-            parseInt(minute, 10),
-            0,
-            0
+            parseInt(minute, 10)
           );
+
           // Formatear fecha para el ID y para comparación local
-          const dateString = format(classDate, "yyyy-MM-dd");
+          const dateString = format(day, "yyyy-MM-dd"); // Usar el día original, no classDate
           const timeString = format(classDate, "HH-mm");
 
           generatedClasses.push({
