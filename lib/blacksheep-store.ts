@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { initialUsers } from "./mock-data";
@@ -8,6 +9,7 @@ import { initialDisciplines } from "./mock-data";
 import { initialInstructors } from "./mock-data";
 import { initialMembershipPlans as initialPlans } from "./mock-data";
 import { initialOrganization } from "./mock-data";
+import { initialBanners } from "./mock-data";
 import type {
   FitCenterUserProfile as User,
   ClassSession,
@@ -15,6 +17,7 @@ import type {
   Instructor,
   MembershipPlan as Plan,
   Organization,
+  Banner,
 } from "./types";
 import { UserService } from "./services/user-service";
 import { ApiResponse, PaginatedApiResponse } from "./api/types";
@@ -49,6 +52,7 @@ interface BlackSheepStore {
   userStats: any;
   isLoading: boolean;
   error: string | null;
+  banners: Banner[];
 
   // Provider management
   currentProviderType: "mock" | "prisma";
@@ -155,6 +159,14 @@ interface BlackSheepStore {
     paymentMethod: string
   ) => Promise<void>;
 
+  // Banner actions
+  addBanner: (banner: Omit<Banner, "id" | "createdAt">) => void;
+  updateBanner: (id: string, updates: Partial<Banner>) => void;
+  deleteBanner: (bannerId: string) => void;
+  toggleBanner: (bannerId: string) => void;
+  reorderBanners: (banners: Banner[]) => void;
+  getActiveBanners: () => Banner[];
+
   // Provider management actions
   switchProvider: (providerType: "mock" | "prisma") => Promise<boolean>;
   getProviderHealth: () => Promise<any>;
@@ -164,7 +176,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
   devtools(
     (set, get) => ({
       // Initial state
-      users: [],
+      users: initialUsers,
       pagination: null,
       classSessions: initialClassSessions,
       disciplines: [],
@@ -181,6 +193,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       isLoading: false,
       error: null,
       currentProviderType: "mock",
+      banners: initialBanners, // Inicializar con banners migrados desde staticCarouselSlides
 
       // User actions
       addUser: (user) => set((state) => ({ users: [...state.users, user] })),
@@ -1089,6 +1102,77 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           set({ isLoading: false });
         }
       },
+
+      // Banner actions
+      addBanner: (bannerData) => {
+        const newBanner: Banner = {
+          ...bannerData,
+          id: `banner_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          createdAt: new Date().toISOString(),
+          order: get().banners.length, // Auto-assign order
+        };
+
+        // Enforce maximum of 7 banners
+        const currentBanners = get().banners;
+        if (currentBanners.length >= 7) {
+          set({ error: "Máximo 7 banners permitidos" });
+          return;
+        }
+
+        set((state) => ({
+          banners: [...state.banners, newBanner],
+          error: null,
+        }));
+      },
+
+      updateBanner: (id, updates) =>
+        set((state) => ({
+          banners: state.banners.map((b) =>
+            b.id === id ? { ...b, ...updates } : b
+          ),
+          error: null,
+        })),
+
+      deleteBanner: (bannerId) =>
+        set((state) => {
+          const filteredBanners = state.banners.filter(
+            (b) => b.id !== bannerId
+          );
+          // Reorder remaining banners
+          const reorderedBanners = filteredBanners.map((banner, index) => ({
+            ...banner,
+            order: index,
+          }));
+          return {
+            banners: reorderedBanners,
+            error: null,
+          };
+        }),
+
+      toggleBanner: (bannerId) =>
+        set((state) => ({
+          banners: state.banners.map((b) =>
+            b.id === bannerId ? { ...b, isActive: !b.isActive } : b
+          ),
+          error: null,
+        })),
+
+      reorderBanners: (banners) => {
+        // Update order property based on array position
+        const reorderedBanners = banners.map((banner, index) => ({
+          ...banner,
+          order: index,
+        }));
+        set({ banners: reorderedBanners, error: null });
+      },
+
+      getActiveBanners: () => {
+        const { banners } = get();
+        return banners
+          .filter((banner) => banner.isActive)
+          .sort((a, b) => a.order - b.order)
+          .slice(0, 7); // Ensure max 7 banners
+      },
     }),
     {
       name: "blacksheep-store",
@@ -1157,6 +1241,19 @@ export const useActiveDisciplines = () =>
   useBlackSheepStore((state) =>
     state.disciplines.filter((discipline) => discipline.isActive)
   );
+
+export const useActiveBanners = () => {
+  const banners = useBlackSheepStore((state) => state.banners);
+
+  return React.useMemo(() => {
+    return banners
+      .filter((banner) => banner.isActive)
+      .sort((a, b) => a.order - b.order)
+      .slice(0, 7);
+  }, [banners]);
+};
+
+export const useBanners = () => useBlackSheepStore((state) => state.banners);
 
 // ========================================================================================
 // Constants for UI components

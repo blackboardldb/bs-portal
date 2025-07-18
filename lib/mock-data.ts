@@ -7,6 +7,7 @@ import type {
   Organization,
   Instructor,
   ClassSessionExtended,
+  Banner,
 } from "@/lib/types";
 
 // === INTERFACES ESPECÍFICAS PARA LA VISTA CLIENTE ===
@@ -450,7 +451,7 @@ export const antoniaOvejeroProfile: FitCenterUserProfile = {
     id: "mem_blacksheep_antonia",
     organizationId: "org_blacksheep_001",
     organizationName: "BlackSheep CrossFit",
-    status: "expired",
+    status: "active",
     membershipType: "Básico",
     planId: "plan_basico_001",
     monthlyPrice: 35000,
@@ -491,6 +492,17 @@ export const antoniaOvejeroProfile: FitCenterUserProfile = {
           count: 2,
         },
       },
+    },
+    // RENOVACIÓN PENDIENTE - Antonia quiere renovar su plan básico
+    pendingRenewal: {
+      id: "renewal_antonia_001",
+      requestedPlanId: "plan_basico_001", // Quiere mantener el mismo plan
+      requestedPaymentMethod: "transferencia",
+      requestDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Solicitó hace 1 día
+      status: "pending",
+      requestedBy: "usr_antonia_abc123",
+      notes: "Quiero renovar mi plan básico, me gusta el gimnasio",
+      previousPlanId: "plan_basico_001",
     },
   },
 };
@@ -554,9 +566,83 @@ export const antoniaBlackSheepMock = {
   classes: [], // Removed antoniaClasses as it's not used in the actual app
 };
 
+// Nuevo usuario para demostrar renovaciones (sin afectar el flujo existente)
+export const sofiaRodriguezProfile: FitCenterUserProfile = {
+  id: "usr_sofia_rodriguez_001",
+  firstName: "Sofia",
+  lastName: "Rodríguez",
+  email: "sofia.rodriguez@email.com",
+  phone: "+56 9 8888 7777",
+  dateOfBirth: "1985-03-20",
+  avatarId: "avatar_2",
+  gender: "Femenino",
+  membership: {
+    id: "mem_sofia_001",
+    organizationId: "org_blacksheep_001",
+    organizationName: "BlackSheep CrossFit",
+    status: "active",
+    membershipType: "Básico",
+    planId: "plan_basico_001",
+    monthlyPrice: 35000,
+    startDate: "2024-06-01",
+    currentPeriodStart: "2024-12-01",
+    currentPeriodEnd: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0], // Vence en 10 días
+    planConfig: {
+      classLimit: 8,
+      disciplineAccess: "all",
+      allowedDisciplines: [],
+      canFreeze: true,
+      freezeDurationDays: 7,
+      autoRenews: true,
+    },
+    centerConfig: {
+      allowCancellation: true,
+      cancellationHours: 2,
+      maxBookingsPerDay: 2,
+      autoWaitlist: true,
+    },
+    centerStats: {
+      currentMonth: {
+        classesAttended: 5,
+        classesContracted: 8,
+        remainingClasses: 3,
+        noShows: 0,
+        lastMinuteCancellations: 0,
+      },
+      totalMonthsActive: 6,
+      memberSince: "2024-06-01",
+      lifetimeStats: {
+        totalClasses: 45,
+        totalNoShows: 2,
+        averageMonthlyAttendance: 7.5,
+        bestMonth: {
+          month: "Oct",
+          year: 2024,
+          count: 8,
+        },
+      },
+    },
+    // RENOVACIÓN PENDIENTE - Sofia quiere renovar su plan básico
+    pendingRenewal: {
+      id: "renewal_sofia_001",
+      requestedPlanId: "plan_basico_001", // Quiere mantener el mismo plan
+      requestedPaymentMethod: "transferencia",
+      requestDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // Solicitó hace 3 días
+      status: "pending",
+      requestedBy: "usr_sofia_rodriguez_001",
+      notes:
+        "Quiero renovar mi plan básico, estoy muy contenta con el gimnasio",
+      previousPlanId: "plan_basico_001",
+    },
+  },
+};
+
 export const initialUsers: FitCenterUserProfile[] = [
   antoniaOvejeroProfile,
   adminUserProfile,
+  sofiaRodriguezProfile,
   // Pedro Pérez (ACTIVO - ILIMITADO)
   {
     id: "usr_pedro_perez_001",
@@ -794,7 +880,7 @@ export const initialUsers: FitCenterUserProfile[] = [
     globalPreferences: {},
     globalStats: {},
   },
-  // Carlos Ruiz (VENCE PRONTO - 3 días)
+  // Carlos Ruiz (VENCE PRONTO - 3 días) - CON RENOVACIÓN PENDIENTE
   {
     id: "usr_carlos_ruiz_001",
     firstName: "Carlos",
@@ -851,6 +937,19 @@ export const initialUsers: FitCenterUserProfile[] = [
           averageMonthlyAttendance: 6,
           bestMonth: { month: "Diciembre", year: 2024, count: 6 },
         },
+      },
+      // RENOVACIÓN PENDIENTE - URGENTE (expira en 3 días)
+      pendingRenewal: {
+        id: "renewal_carlos_ruiz_001",
+        requestedPlanId: "plan_intermedio_001", // Quiere cambiar a plan intermedio
+        requestedPaymentMethod: "transferencia",
+        requestDate: new Date(
+          Date.now() - 2 * 24 * 60 * 60 * 1000
+        ).toISOString(), // Solicitó hace 2 días
+        status: "pending",
+        requestedBy: "usr_carlos_ruiz_001",
+        notes: "Quiero cambiar a plan intermedio para tener más clases",
+        previousPlanId: "plan_basico_001",
       },
     },
     globalPreferences: {},
@@ -971,6 +1070,81 @@ export const initialUsers: FitCenterUserProfile[] = [
           averageMonthlyAttendance: 0,
           bestMonth: { month: "N/A", year: 0, count: 0 },
         },
+      },
+    },
+    globalPreferences: {},
+    globalStats: {},
+  },
+  // Ana López (ACTIVA - CON RENOVACIÓN PENDIENTE - NO URGENTE)
+  {
+    id: "usr_ana_lopez_001",
+    firstName: "Ana",
+    lastName: "López",
+    email: "ana.lopez@email.com",
+    phone: "+56 9 5555 4444",
+    dateOfBirth: "1987-09-20",
+    gender: "Femenino",
+    avatarId: "avatar_1",
+    address: "Calle Nueva 456, Antofagasta",
+    emergencyContact: "Luis López +56 9 6666 5555",
+    notes: "Cliente regular, quiere renovar su plan",
+    formaDePago: "debito",
+    membership: {
+      id: "mem_ana_lopez_001",
+      organizationId: "org_blacksheep_001",
+      organizationName: "BlackSheep CrossFit",
+      status: "active",
+      membershipType: "Intermedio",
+      planId: "plan_intermedio_001",
+      monthlyPrice: 42500,
+      startDate: "2024-10-01",
+      currentPeriodStart: "2024-12-01",
+      currentPeriodEnd: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0], // Vence en 15 días
+      planConfig: {
+        classLimit: 15,
+        disciplineAccess: "all",
+        allowedDisciplines: [],
+        canFreeze: true,
+        freezeDurationDays: 7,
+        autoRenews: true,
+      },
+      centerConfig: {
+        allowCancellation: true,
+        cancellationHours: 2,
+        maxBookingsPerDay: 2,
+        autoWaitlist: false,
+      },
+      centerStats: {
+        currentMonth: {
+          classesAttended: 8,
+          classesContracted: 15,
+          remainingClasses: 7,
+          noShows: 0,
+          lastMinuteCancellations: 1,
+        },
+        totalMonthsActive: 3,
+        memberSince: "2024-10-01",
+        lifetimeStats: {
+          totalClasses: 35,
+          totalNoShows: 1,
+          averageMonthlyAttendance: 11.7,
+          bestMonth: { month: "Noviembre", year: 2024, count: 14 },
+        },
+      },
+      // RENOVACIÓN PENDIENTE - NO URGENTE (expira en 15 días)
+      pendingRenewal: {
+        id: "renewal_ana_lopez_001",
+        requestedPlanId: "plan_intermedio_001", // Quiere mantener el mismo plan
+        requestedPaymentMethod: "debito",
+        requestDate: new Date(
+          Date.now() - 5 * 24 * 60 * 60 * 1000
+        ).toISOString(), // Solicitó hace 5 días
+        status: "pending",
+        requestedBy: "usr_ana_lopez_001",
+        notes: "Quiero renovar el mismo plan, estoy muy contenta",
+        previousPlanId: "plan_intermedio_001",
       },
     },
     globalPreferences: {},
@@ -1750,53 +1924,83 @@ export const initialClasses: ClassSession[] = [];
 // Clases extendidas con datos históricos - Array vacío para generación dinámica
 export const initialClassSessionsExtended: ClassSessionExtended[] = [];
 
-// === SLIDES DEL CARRUSEL ESTÁTICO ===
-export interface CarouselSlide {
-  id: string;
-  title: string;
-  description: string;
-  // imageUrl: string; // Eliminado
-  ClassStyleADD: string; // Clase CSS para el degradado
-  buttonText?: string;
-  buttonLink?: string;
-}
+// === DATOS OBSOLETOS REMOVIDOS ===
+// staticCarouselSlides ha sido migrado a initialBanners
+// CarouselSlide interface ha sido reemplazada por Banner interface
 
-export const staticCarouselSlides: CarouselSlide[] = [
+// === BANNERS INICIALES (MIGRADOS DESDE STATIC CAROUSEL) ===
+export const initialBanners: Banner[] = [
   {
-    id: "slide-1",
+    id: "banner_crossfit_001",
     title: "CrossFit",
-    description: "Entrenamiento funcional de alta intensidad",
-    // imageUrl: "/placeholder.jpg", // Eliminado
-    ClassStyleADD: "bg-gradient-to-r from-red-500 to-orange-500",
-    buttonText: "Ver Horarios",
-    buttonLink: "/app/calendar",
+    subtitle: "Entrenamiento funcional de alta intensidad",
+    icon: "Zap", // Lucide icon
+    buttonTitle: "Ver Horarios",
+    buttonUrl: "/app/calendar",
+    badge: false,
+    badgeText: "",
+    backgroundColor: "bg-gradient-to-r from-red-500 to-orange-500",
+    textColor: "text-white",
+    subtitleColor: "text-red-100",
+    buttonColor: "bg-white hover:bg-gray-100",
+    textButtonColor: "text-red-700",
+    isActive: true,
+    order: 0,
+    createdAt: new Date().toISOString(),
   },
   {
-    id: "slide-2",
+    id: "banner_weightlifting_001",
     title: "Weightlifting",
-    description: "Levantamiento de pesas olímpico",
-    // imageUrl: "/placeholder.jpg", // Eliminado
-    ClassStyleADD: "bg-gradient-to-r from-violet-200 to-pink-200",
-    buttonText: "Ver Horarios",
-    buttonLink: "/app/calendar",
+    subtitle: "Levantamiento de pesas olímpico",
+    icon: "Dumbbell",
+    buttonTitle: "Ver Horarios",
+    buttonUrl: "/app/calendar",
+    badge: false,
+    badgeText: "",
+    backgroundColor: "bg-gradient-to-r from-violet-200 to-pink-200",
+    textColor: "text-black",
+    subtitleColor: "text-gray-700",
+    buttonColor: "bg-purple-600 hover:bg-purple-700",
+    textButtonColor: "text-white",
+    isActive: true,
+    order: 1,
+    createdAt: new Date().toISOString(),
   },
   {
-    id: "slide-3",
+    id: "banner_crossbalance_001",
     title: "Cross Balance",
-    description: "Equilibrio y control corporal",
-    // imageUrl: "/placeholder.jpg", // Eliminado
-    ClassStyleADD: "bg-gradient-to-r from-emerald-400 to-cyan-400",
-    buttonText: "Ver Horarios",
-    buttonLink: "/app/calendar",
+    subtitle: "Equilibrio y control corporal",
+    icon: "Scale",
+    buttonTitle: "Ver Horarios",
+    buttonUrl: "/app/calendar",
+    badge: false,
+    badgeText: "",
+    backgroundColor: "bg-gradient-to-r from-emerald-400 to-cyan-400",
+    textColor: "text-white",
+    subtitleColor: "text-emerald-100",
+    buttonColor: "bg-white hover:bg-gray-100",
+    textButtonColor: "text-emerald-700",
+    isActive: true,
+    order: 2,
+    createdAt: new Date().toISOString(),
   },
   {
-    id: "slide-4",
+    id: "banner_nuevos_miembros_001",
     title: "Nuevos Miembros",
-    description: "¡Únete a nuestra comunidad!",
-    // imageUrl: "/placeholder.jpg", // Eliminado
-    ClassStyleADD: "bg-gradient-to-r from-emerald-500 to-emerald-900",
-    buttonText: "Registrarse",
-    buttonLink: "/app",
+    subtitle: "¡Únete a nuestra comunidad!",
+    icon: "Users",
+    buttonTitle: "Registrarse",
+    buttonUrl: "/auth",
+    badge: true,
+    badgeText: "NUEVO",
+    backgroundColor: "bg-gradient-to-r from-emerald-500 to-emerald-900",
+    textColor: "text-white",
+    subtitleColor: "text-emerald-100",
+    buttonColor: "bg-lime-500 hover:bg-lime-600",
+    textButtonColor: "text-white",
+    isActive: true,
+    order: 3,
+    createdAt: new Date().toISOString(),
   },
 ];
 

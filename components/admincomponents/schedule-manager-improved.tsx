@@ -286,15 +286,13 @@ export default function ScheduleManagerImproved() {
     .sort();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Header con gestión de disciplinas */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">
-            Gestión de Disciplinas y Horarios
-          </h2>
+          <h2 className="text-2xl font-bold">Disciplinas y Horarios</h2>
           <p className="text-muted-foreground">
-            Administra las disciplinas y sus horarios para la generación de
+            Crea y edita las disciplinas y sus horarios para la generación de
             clases
           </p>
         </div>
@@ -408,19 +406,21 @@ export default function ScheduleManagerImproved() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Horarios:</span>
-                        {d.schedule.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            {d.schedule.length} día
-                            {d.schedule.length !== 1 ? "s" : ""}
-                          </Badge>
-                        )}
+                        <p className="text-sm font-medium">
+                          Dias a la semana: {""}
+                          {d.schedule.length > 0 && (
+                            <span className="">
+                              {d.schedule.length} día
+                              {d.schedule.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </p>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => toggleDisciplineExpansion(d.id)}
-                        className="text-xs"
+                        className="text-xs underline"
                       >
                         {expandedDisciplines.has(d.id)
                           ? "Ocultar"

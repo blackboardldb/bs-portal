@@ -384,3 +384,86 @@ export interface ClassListItem {
   waitlistParticipantsIds?: string[];
   notes?: string;
 }
+
+// === SISTEMA DE BANNERS ===
+
+export interface Banner {
+  id: string;
+  title: string;
+  subtitle?: string;
+  icon?: string; // Lucide icon name
+  buttonTitle?: string;
+  buttonUrl?: string;
+  badge?: boolean;
+  badgeText?: string;
+  backgroundColor: string; // Tailwind class
+  textColor: string;
+  subtitleColor?: string;
+  buttonColor?: string;
+  textButtonColor?: string;
+  isActive: boolean;
+  order: number; // Para ordenar
+  createdAt: string;
+}
+
+export const BACKGROUND_STYLES = {
+  gradient_blue: "bg-gradient-to-r from-blue-500 to-blue-700",
+  gradient_green: "bg-gradient-to-r from-green-500 to-green-700",
+  gradient_purple: "bg-gradient-to-r from-purple-500 to-purple-700",
+  gradient_orange: "bg-gradient-to-r from-orange-500 to-orange-700",
+  gradient_red: "bg-gradient-to-r from-red-500 to-red-700",
+  solid_dark: "bg-gray-900",
+  solid_primary: "bg-primary",
+  pattern_dots:
+    "bg-gray-900 bg-[radial-gradient(white_1px,transparent_1px)] bg-[size:20px_20px]",
+} as const;
+
+export const TEXT_COLORS = {
+  white: "text-white",
+  black: "text-black",
+  gray_light: "text-gray-100",
+  gray_dark: "text-gray-900",
+  primary: "text-primary",
+  blue: "text-blue-600",
+  green: "text-green-600",
+  orange: "text-orange-600",
+  red: "text-red-600",
+} as const;
+
+export const BUTTON_COLORS = {
+  white: "bg-white hover:bg-gray-100",
+  primary: "bg-primary hover:bg-primary/90",
+  secondary: "bg-secondary hover:bg-secondary/90",
+  lime: "bg-lime-500 hover:bg-lime-600",
+  blue: "bg-blue-500 hover:bg-blue-600",
+  green: "bg-green-500 hover:bg-green-600",
+  orange: "bg-orange-500 hover:bg-orange-600",
+  red: "bg-red-500 hover:bg-red-600",
+  transparent: "bg-transparent border border-white hover:bg-white/10",
+} as const;
+
+export const BUTTON_TEXT_COLORS = {
+  white: "text-white",
+  black: "text-black",
+  primary: "text-primary",
+  blue: "text-blue-700",
+  green: "text-green-700",
+  orange: "text-orange-700",
+  red: "text-red-700",
+} as const;
+
+// Form data interface for banner creation/editing
+export interface BannerFormData {
+  title: string;
+  subtitle: string;
+  icon: string;
+  buttonTitle: string;
+  buttonUrl: string;
+  badge: boolean;
+  badgeText: string;
+  backgroundStyle: keyof typeof BACKGROUND_STYLES;
+  textColor: keyof typeof TEXT_COLORS;
+  subtitleColor: keyof typeof TEXT_COLORS;
+  buttonColor: keyof typeof BUTTON_COLORS;
+  textButtonColor: keyof typeof BUTTON_TEXT_COLORS;
+}

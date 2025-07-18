@@ -9,7 +9,6 @@ import {
   GraduationCap,
   Calendar,
   CreditCard,
-  Settings,
   Bell,
   ClipboardList,
 } from "lucide-react";
@@ -23,7 +22,6 @@ const navigation = [
   { name: "Notificaciones", href: "/admin/alertas", icon: Bell },
   { name: "Horarios", href: "/admin/horarios", icon: Calendar },
   { name: "Planes", href: "/admin/planes", icon: CreditCard },
-  { name: "Configuración", href: "/admin/configuraciones", icon: Settings },
 ];
 
 export function Navigation() {

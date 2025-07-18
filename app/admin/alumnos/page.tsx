@@ -52,6 +52,11 @@ export default function AlumnosPage() {
     updateUserById,
   } = useBlackSheepStore();
 
+  // Filtrar usuarios para excluir staff (admin/coach) - solo mostrar alumnos
+  const studentsOnly = users.filter(
+    (user) => !user.role || user.role === "user" // Solo usuarios sin rol o con rol "user"
+  );
+
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -73,7 +78,7 @@ export default function AlumnosPage() {
           page,
           limit,
           searchTerm,
-          undefined,
+          undefined, // No filtrar por rol específico (incluye usuarios sin rol = alumnos)
           statusFilter !== "todos" ? statusFilter : undefined
         );
       } finally {
@@ -140,7 +145,7 @@ export default function AlumnosPage() {
               page,
               limit,
               searchTerm,
-              undefined,
+              undefined, // No filtrar por rol específico (incluye usuarios sin rol = alumnos)
               statusFilter !== "todos" ? statusFilter : undefined
             );
           }}
@@ -237,7 +242,7 @@ export default function AlumnosPage() {
                     </TableCell>
                   </TableRow>
                 ))
-              ) : users.length === 0 ? (
+              ) : studentsOnly.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={5}
@@ -249,7 +254,7 @@ export default function AlumnosPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((student: FitCenterUserProfile) => (
+                studentsOnly.map((student: FitCenterUserProfile) => (
                   <TableRow
                     key={student.id}
                     className={
@@ -327,12 +332,12 @@ export default function AlumnosPage() {
         }}
         onClose={handleCloseEditModal}
         onSuccess={() => {
-          // Refrescar la lista después de editar
+          // Refreshar la lista después de editar
           fetchUsers(
             page,
             limit,
             searchTerm,
-            undefined,
+            undefined, // No filtrar por rol específico (incluye usuarios sin rol = alumnos)
             statusFilter !== "todos" ? statusFilter : undefined
           );
         }}

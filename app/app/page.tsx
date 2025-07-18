@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { HomePage } from "@/components/HomePage";
 import Logo from "@/components/Logo";
-import StaticCarousel from "@/components/StaticCarousel";
+import BannerCarousel from "@/components/banner-carousel";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -148,7 +148,7 @@ export default function Page() {
       />
       <aside className="p-4 max-w-4xl mx-auto pb-28 w-full">
         <div className="w-full bg-zinc-800 p-4 rounded-lg space-y-3">
-          <StaticCarousel />
+          <BannerCarousel />
         </div>
       </aside>
     </main>

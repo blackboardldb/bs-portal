@@ -12,6 +12,7 @@ import { UserFormStep } from "./_components/user-form-step";
 import { PlanSelectionStep } from "./_components/plan-selection-step";
 import { PaymentMethodStep } from "./_components/payment-method-step";
 import { ConfirmationStep } from "./_components/confirmation-step";
+import { OTPVerificationStep } from "./_components/otp-verification-step";
 import { useAuthReducer } from "./_hooks/use-auth-reducer";
 
 export default function AuthCompletePage() {
@@ -94,6 +95,46 @@ export default function AuthCompletePage() {
     }
   };
 
+  // Enviar OTP (mock)
+  const sendOTP = async (email: string) => {
+    // Mock: simular envío de OTP
+    const mockOTP = "123456"; // En producción, esto sería generado y enviado por email
+    console.log(`📧 Mock OTP enviado a ${email}: ${mockOTP}`);
+
+    // Simular delay de envío
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    toast({
+      title: "Código enviado",
+      description: `Hemos enviado un código de verificación a ${email}`,
+    });
+  };
+
+  // Verificar OTP (mock)
+  const verifyOTP = async (email: string, otp: string) => {
+    // Mock: verificar OTP
+    const mockOTP = "123456"; // En producción, esto se verificaría contra el servidor
+
+    if (otp === mockOTP) {
+      return true;
+    } else {
+      throw new Error("Código incorrecto. Intenta nuevamente.");
+    }
+  };
+
+  // Reenviar OTP
+  const handleResendOTP = async () => {
+    try {
+      await sendOTP(formData.email);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo reenviar el código. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Continuar con el flujo
   const handleContinue = async () => {
     if (!canContinue()) {
@@ -109,9 +150,18 @@ export default function AuthCompletePage() {
         clearAuthStorage();
         resetState();
         router.push("/app");
-      } else if (currentStep < totalSteps) {
+      } else if (currentStep === 5) {
+        // Paso 5 (Confirmación): Enviar OTP y pasar al paso 6
+        await sendOTP(formData.email);
         nextStep();
-      } else {
+      } else if (currentStep === 6) {
+        // Paso 6 (OTP): Verificar OTP y crear usuario
+        const isValidOTP = await verifyOTP(formData.email, formData.otp);
+        if (!isValidOTP) {
+          throw new Error("Código incorrecto. Intenta nuevamente.");
+        }
+
+        // OTP verificado, crear usuario
         // Dentro de handleContinue, en el else final:
         const newUser = {
           id: `usr_${formData.firstName.toLowerCase()}_${Date.now()}`,
@@ -178,6 +228,9 @@ export default function AuthCompletePage() {
         clearAuthStorage();
         resetState();
         router.push("/app");
+      } else if (currentStep < totalSteps) {
+        // Pasos intermedios (2, 3, 4): continuar al siguiente paso
+        nextStep();
       }
     } catch {
       setError("Error inesperado. Por favor intenta nuevamente.");
@@ -266,6 +319,18 @@ export default function AuthCompletePage() {
             formData={formData}
             onContinue={handleContinue}
             isLoading={isLoading}
+          />
+        );
+      case 6:
+        return (
+          <OTPVerificationStep
+            email={formData.email}
+            otp={formData.otp}
+            onOTPChange={(otp) => updateFormData("otp", otp)}
+            onContinue={handleContinue}
+            onResendOTP={handleResendOTP}
+            isLoading={isLoading}
+            error={error}
           />
         );
       default:

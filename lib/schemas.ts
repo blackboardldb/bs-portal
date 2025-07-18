@@ -305,3 +305,138 @@ export type MembershipRenewal = z.infer<typeof membershipRenewalSchema>;
 export type CreateMembershipRenewal = z.infer<
   typeof createMembershipRenewalSchema
 >;
+
+// Banner schemas
+export const bannerSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1).max(50),
+  subtitle: z.string().max(100).optional(),
+  icon: z.string().optional(),
+  buttonTitle: z.string().max(30).optional(),
+  buttonUrl: z
+    .string()
+    .refine((url) => {
+      if (!url) return true; // Optional field
+      // Allow internal routes (starting with /) or external URLs
+      return url.startsWith("/") || /^https?:\/\//.test(url);
+    }, "Debe ser una URL válida (ej: /app/calendar o https://ejemplo.com)")
+    .optional(),
+  badge: z.boolean().default(false),
+  badgeText: z.string().max(20).optional(),
+  backgroundColor: z.string(),
+  textColor: z.string(),
+  subtitleColor: z.string().optional(),
+  buttonColor: z.string().optional(),
+  textButtonColor: z.string().optional(),
+  isActive: z.boolean().default(true),
+  order: z.number().min(0).max(6),
+  createdAt: z.string(),
+});
+
+export const createBannerSchema = z
+  .object({
+    title: z
+      .string()
+      .min(1, "El título es requerido")
+      .max(50, "El título no puede exceder 50 caracteres"),
+    subtitle: z
+      .string()
+      .max(100, "El subtítulo no puede exceder 100 caracteres")
+      .optional(),
+    icon: z.string().optional(),
+    buttonTitle: z
+      .string()
+      .max(30, "El texto del botón no puede exceder 30 caracteres")
+      .optional(),
+    buttonUrl: z
+      .string()
+      .refine((url) => {
+        if (!url) return true; // Optional field
+        // Allow internal routes (starting with /) or external URLs
+        return url.startsWith("/") || /^https?:\/\//.test(url);
+      }, "Debe ser una URL válida (ej: /app/calendar o https://ejemplo.com)")
+      .optional(),
+    badge: z.boolean().default(false),
+    badgeText: z
+      .string()
+      .max(20, "El texto del badge no puede exceder 20 caracteres")
+      .optional(),
+    backgroundColor: z.string().min(1, "El color de fondo es requerido"),
+    textColor: z.string().min(1, "El color del texto es requerido"),
+    subtitleColor: z.string().optional(),
+    buttonColor: z.string().optional(),
+    textButtonColor: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      // Si hay buttonTitle, debe haber buttonUrl y viceversa
+      const hasButtonTitle = data.buttonTitle && data.buttonTitle.trim();
+      const hasButtonUrl = data.buttonUrl && data.buttonUrl.trim();
+
+      if (hasButtonTitle && !hasButtonUrl) {
+        return false;
+      }
+      if (hasButtonUrl && !hasButtonTitle) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message:
+        "Si especificas un botón, debes incluir tanto el texto como la URL",
+      path: ["buttonTitle"],
+    }
+  )
+  .refine(
+    (data) => {
+      // Si badge es true, debe haber badgeText
+      if (data.badge && (!data.badgeText || !data.badgeText.trim())) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Si activas el badge, debes especificar el texto",
+      path: ["badgeText"],
+    }
+  );
+
+export const updateBannerSchema = z.object({
+  title: z
+    .string()
+    .min(1, "El título es requerido")
+    .max(50, "El título no puede exceder 50 caracteres")
+    .optional(),
+  subtitle: z
+    .string()
+    .max(100, "El subtítulo no puede exceder 100 caracteres")
+    .optional(),
+  icon: z.string().optional(),
+  buttonTitle: z
+    .string()
+    .max(30, "El texto del botón no puede exceder 30 caracteres")
+    .optional(),
+  buttonUrl: z
+    .string()
+    .refine((url) => {
+      if (!url) return true; // Optional field
+      // Allow internal routes (starting with /) or external URLs
+      return url.startsWith("/") || /^https?:\/\//.test(url);
+    }, "Debe ser una URL válida (ej: /app/calendar o https://ejemplo.com)")
+    .optional(),
+  badge: z.boolean().optional(),
+  badgeText: z
+    .string()
+    .max(20, "El texto del badge no puede exceder 20 caracteres")
+    .optional(),
+  backgroundColor: z.string().optional(),
+  textColor: z.string().optional(),
+  subtitleColor: z.string().optional(),
+  buttonColor: z.string().optional(),
+  textButtonColor: z.string().optional(),
+});
+
+// Export banner types
+export type Banner = z.infer<typeof bannerSchema>;
+export type CreateBanner = z.infer<typeof createBannerSchema>;
+export type UpdateBanner = z.infer<typeof updateBannerSchema>;

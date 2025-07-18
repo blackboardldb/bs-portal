@@ -14,6 +14,7 @@ export interface AuthFormData {
   selectedPlan: string;
   billingFrequency: string;
   paymentMethod: string;
+  otp: string; // Nuevo campo para OTP
 }
 
 export interface AuthState {
@@ -51,6 +52,7 @@ const initialState: AuthState = {
     selectedPlan: "",
     billingFrequency: "monthly",
     paymentMethod: "",
+    otp: "", // Nuevo campo para OTP
   },
   isLoading: false,
   error: null,
@@ -105,7 +107,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
     case "NEXT_STEP":
       return {
         ...state,
-        currentStep: Math.min(state.currentStep + 1, 5),
+        currentStep: Math.min(state.currentStep + 1, 6), // Ahora son 6 pasos
         error: null,
       };
 
@@ -165,7 +167,7 @@ export function useAuthReducer() {
   }, []);
 
   // Cálculos derivados
-  const totalSteps = state.userExists === null ? 5 : state.userExists ? 2 : 5;
+  const totalSteps = state.userExists === null ? 6 : state.userExists ? 2 : 6; // Ahora son 6 pasos para usuarios nuevos
   const progressPercentage = (state.currentStep / totalSteps) * 100;
   const isLastStep = state.currentStep === totalSteps;
   const isFirstStep = state.currentStep === 1;
@@ -192,7 +194,9 @@ export function useAuthReducer() {
       case 4:
         return !!state.formData.paymentMethod;
       case 5:
-        return true;
+        return true; // Confirmación
+      case 6:
+        return state.formData.otp.length === 6; // OTP debe tener 6 dígitos
       default:
         return false;
     }

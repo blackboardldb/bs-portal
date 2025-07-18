@@ -105,7 +105,7 @@ export function ConfirmationStep({
         disabled={isLoading}
         className="w-full h-14 text-lg bg-green-600 hover:bg-green-700"
       >
-        {isLoading ? "Finalizando..." : "Ir a la app"}
+        {isLoading ? "Finalizando..." : "Continuar"}
       </Button>
     </div>
   );

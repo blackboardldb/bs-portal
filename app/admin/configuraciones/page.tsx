@@ -179,6 +179,30 @@ export default function ConfiguracionesPage() {
           </CardContent>
         </Card>
 
+        {/* Gestión de Banners */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Banners y Anuncios</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              Personaliza los banners que aparecen en la aplicación principal
+              para promociones, anuncios y contenido destacado.
+            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Gestión de Banners</p>
+                <p className="text-xs text-muted-foreground">
+                  Crear, editar y organizar banners promocionales
+                </p>
+              </div>
+              <Button asChild>
+                <a href="/admin/configuraciones/banners">Gestionar Banners</a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Botón de Guardar */}
         <div className="flex justify-end">
           <Button onClick={handleSave} className="px-8">
