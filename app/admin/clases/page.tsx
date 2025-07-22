@@ -29,6 +29,9 @@ import {
 } from "date-fns";
 import type { DayOfWeek } from "@/lib/types";
 
+// Utilidad para saber si una clase es pasada
+const isClassPast = (dateTime: string | Date) => isPast(new Date(dateTime));
+
 // CONTEXTO: Este tipo se ha enriquecido para ser 100% compatible con AdminClassDetailDrawer.
 // Ahora contiene toda la información necesaria para que el drawer muestre
 // los detalles completos de la clase, sin necesidad de hacer otra llamada a la API.
@@ -232,7 +235,7 @@ export default function AdminClasesPage() {
     setPage(1); // Resetear a la primera página al cambiar fecha
   }, []);
 
-  // CONTEXTO: Mostrar todas las clases como el calendario, sin filtrado inteligente
+  // CONTEXTO: Filtrado inteligente para optimizar performance y UX
   const activeClasses = useMemo(() => {
     return monthlyClasses
       .filter((session) => {
@@ -244,8 +247,20 @@ export default function AdminClasesPage() {
 
         if (!isSameDate) return false;
 
-        // Solo filtrar clases canceladas, mostrar todas las demás
-        return session.status !== "cancelled";
+        // Filtrar clases canceladas
+        if (session.status === "cancelled") return false;
+
+        // OPTIMIZACIÓN: Ocultar clases pasadas sin usuarios inscritos
+        const isPast = isClassPast(session.dateTime);
+        const hasUsers = session.registeredParticipantsIds.length > 0;
+        const isGenerated = session.id.startsWith("gen_");
+
+        // Si es una clase pasada, generada y sin usuarios, no mostrarla
+        if (isPast && isGenerated && !hasUsers) {
+          return false;
+        }
+
+        return true;
       })
       .map(convertClassSessionToClassItem);
   }, [monthlyClasses, selectedDate, convertClassSessionToClassItem]);

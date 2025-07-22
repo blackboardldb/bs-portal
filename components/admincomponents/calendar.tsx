@@ -317,11 +317,26 @@ export function Calendar() {
     }));
   };
 
-  // CONTEXTO: Función para obtener clases de una fecha específica
+  // CONTEXTO: Función para obtener clases de una fecha específica con filtrado inteligente
   const getClassesForDate = (dateString: string) => {
-    const filteredClasses = transformedClasses.filter(
-      (cls) => cls.date === dateString && !isClassCancelled(cls.id)
-    );
+    const filteredClasses = transformedClasses.filter((cls) => {
+      // Filtrar por fecha y clases canceladas localmente
+      if (cls.date !== dateString || isClassCancelled(cls.id)) {
+        return false;
+      }
+
+      // OPTIMIZACIÓN: Ocultar clases pasadas sin usuarios inscritos
+      const isPast = isClassPast(cls.dateTime);
+      const hasUsers = cls.enrolled > 0;
+      const isGenerated = cls.type === "regular"; // Las clases generadas son "regular"
+
+      // Si es una clase pasada, generada y sin usuarios, no mostrarla
+      if (isPast && isGenerated && !hasUsers) {
+        return false;
+      }
+
+      return true;
+    });
 
     return filteredClasses;
   };
@@ -610,13 +625,31 @@ export function Calendar() {
     setShowClassDetails(true);
   };
 
-  // CONTEXTO: Obtener clases para la fecha seleccionada
+  // CONTEXTO: Obtener clases para la fecha seleccionada con filtrado inteligente
   const classesForSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
-    return transformedClasses.filter(
-      (cls) =>
-        cls.date === selectedDate && !cls.cancelled && !isClassCancelled(cls.id)
-    );
+    return transformedClasses.filter((cls) => {
+      // Filtrar por fecha, canceladas y canceladas localmente
+      if (
+        cls.date !== selectedDate ||
+        cls.cancelled ||
+        isClassCancelled(cls.id)
+      ) {
+        return false;
+      }
+
+      // OPTIMIZACIÓN: Ocultar clases pasadas sin usuarios inscritos
+      const isPast = isClassPast(cls.dateTime);
+      const hasUsers = cls.enrolled > 0;
+      const isGenerated = cls.type === "regular";
+
+      // Si es una clase pasada, generada y sin usuarios, no mostrarla
+      if (isPast && isGenerated && !hasUsers) {
+        return false;
+      }
+
+      return true;
+    });
   }, [selectedDate, transformedClasses, isClassCancelled]);
 
   // CONTEXTO: Obtener días del mes actual
