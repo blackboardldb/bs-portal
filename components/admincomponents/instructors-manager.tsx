@@ -50,9 +50,6 @@ export function InstructorsManager() {
   const {
     instructors = [],
     disciplines,
-    addInstructor,
-    updateInstructor,
-    deleteInstructor,
     fetchDisciplines,
     fetchInstructors,
     instructorsPagination,

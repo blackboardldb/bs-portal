@@ -40,12 +40,14 @@ interface ClassCardProps {
   cls: TransformedClass;
   onViewDetails: (cls: TransformedClass) => void;
   onCancel: (classId: string) => void;
+  isLoading?: boolean;
 }
 
 export default function ClassCard({
   cls,
   onViewDetails,
   onCancel,
+  isLoading = false,
 }: ClassCardProps) {
   return (
     <Card className="relative">
@@ -96,8 +98,13 @@ export default function ClassCard({
           >
             Ver Detalles
           </Button>
-          <Button size="sm" variant="outline" onClick={() => onCancel(cls.id)}>
-            Cancelar
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onCancel(cls.id)}
+            disabled={isLoading}
+          >
+            {isLoading ? "..." : "Cancelar"}
           </Button>
         </div>
       </CardContent>

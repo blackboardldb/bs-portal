@@ -119,7 +119,7 @@ export function validatePaginatedResponse<T>(
     return false;
   }
 
-  const obj = response as Record<string, unknown>;
+  const obj = response as unknown as Record<string, unknown>;
 
   return (
     "pagination" in obj &&
