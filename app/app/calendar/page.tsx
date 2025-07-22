@@ -565,30 +565,38 @@ export default function CalendarPage() {
           </div>
         )}
 
-        <ClassList
-          selectedDate={selectedDate}
-          classes={getClassesForDate(selectedDate)}
-          onRegister={handleRegister}
-          onCancel={handleCancel}
-          className="max-w-4xl mx-auto min-h-svh pb-20 px-4 py-6 md:px-6 md:py-8"
-          isLoading={isLoading}
-          canRegister={canRegisterForClasses}
-          planStatus={planStatus}
-        />
+        {/* Mostrar clases solo si el plan está activo */}
+        {planStatus === "active" && (
+          <ClassList
+            selectedDate={selectedDate}
+            classes={getClassesForDate(selectedDate)}
+            onRegister={handleRegister}
+            onCancel={handleCancel}
+            className="max-w-4xl mx-auto min-h-svh pb-20 px-4 py-6 md:px-6 md:py-8"
+            isLoading={isLoading}
+            canRegister={canRegisterForClasses}
+            planStatus={planStatus}
+          />
+        )}
       </div>
 
-      <RegistrationModal
-        isOpen={isRegistrationModalOpen}
-        onClose={closeRegistrationModal}
-        classItem={selectedClass}
-        onConfirm={confirmRegistration}
-      />
-      <CancellationModal
-        isOpen={isCancellationModalOpen}
-        onClose={closeCancellationModal}
-        classItem={selectedClass}
-        onConfirm={confirmCancellation}
-      />
+      {/* Modales solo si el plan está activo */}
+      {planStatus === "active" && (
+        <>
+          <RegistrationModal
+            isOpen={isRegistrationModalOpen}
+            onClose={closeRegistrationModal}
+            classItem={selectedClass}
+            onConfirm={confirmRegistration}
+          />
+          <CancellationModal
+            isOpen={isCancellationModalOpen}
+            onClose={closeCancellationModal}
+            classItem={selectedClass}
+            onConfirm={confirmCancellation}
+          />
+        </>
+      )}
     </>
   );
 }

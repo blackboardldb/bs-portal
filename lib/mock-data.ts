@@ -494,16 +494,16 @@ export const antoniaOvejeroProfile: FitCenterUserProfile = {
       },
     },
     // RENOVACIÓN PENDIENTE - Antonia quiere renovar su plan básico
-    pendingRenewal: {
-      id: "renewal_antonia_001",
-      requestedPlanId: "plan_basico_001", // Quiere mantener el mismo plan
-      requestedPaymentMethod: "transferencia",
-      requestDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Solicitó hace 1 día
-      status: "pending",
-      requestedBy: "usr_antonia_abc123",
-      notes: "Quiero renovar mi plan básico, me gusta el gimnasio",
-      previousPlanId: "plan_basico_001",
-    },
+    // pendingRenewal: {
+    //   id: "renewal_antonia_001",
+    //   requestedPlanId: "plan_basico_001", // Quiere mantener el mismo plan
+    //   requestedPaymentMethod: "transferencia",
+    //   requestDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Solicitó hace 1 día
+    //   status: "pending",
+    //   requestedBy: "usr_antonia_abc123",
+    //   notes: "Quiero renovar mi plan básico, me gusta el gimnasio",
+    //   previousPlanId: "plan_basico_001",
+    // },
   },
 };
 
