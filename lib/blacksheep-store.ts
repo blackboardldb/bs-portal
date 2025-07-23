@@ -34,6 +34,14 @@ export interface PaginationState {
   totalPages: number;
 }
 
+// Modelo de egreso
+export type Egreso = {
+  id: string;
+  motivo: string;
+  fecha: string; // ISO date
+  monto: number;
+};
+
 interface BlackSheepStore {
   // State
   users: User[];
@@ -53,6 +61,7 @@ interface BlackSheepStore {
   isLoading: boolean;
   error: string | null;
   banners: Banner[];
+  egresos: Egreso[];
 
   // Provider management
   currentProviderType: "mock" | "prisma";
@@ -167,6 +176,11 @@ interface BlackSheepStore {
   reorderBanners: (banners: Banner[]) => void;
   getActiveBanners: () => Banner[];
 
+  // Egreso actions
+  fetchEgresos: () => Promise<void>;
+  addEgreso: (egreso: Omit<Egreso, "id">) => Promise<void>;
+  deleteEgreso: (id: string) => Promise<void>;
+
   // Provider management actions
   switchProvider: (providerType: "mock" | "prisma") => Promise<boolean>;
   getProviderHealth: () => Promise<any>;
@@ -194,6 +208,33 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
       error: null,
       currentProviderType: "mock",
       banners: initialBanners, // Inicializar con banners migrados desde staticCarouselSlides
+      egresos: [
+        // Datos de prueba para diferentes meses
+        {
+          id: "egreso_1",
+          motivo: "Alquiler del local",
+          fecha: "2025-01-15T00:00:00.000Z",
+          monto: 150000,
+        },
+        {
+          id: "egreso_2",
+          motivo: "Equipamiento nuevo",
+          fecha: "2025-01-20T00:00:00.000Z",
+          monto: 75000,
+        },
+        {
+          id: "egreso_3",
+          motivo: "Servicios básicos",
+          fecha: "2024-12-10T00:00:00.000Z",
+          monto: 45000,
+        },
+        {
+          id: "egreso_4",
+          motivo: "Mantenimiento",
+          fecha: "2024-11-25T00:00:00.000Z",
+          monto: 30000,
+        },
+      ],
 
       // User actions
       addUser: (user) => set((state) => ({ users: [...state.users, user] })),
@@ -1032,77 +1073,6 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
         }
       },
 
-      // Provider management actions
-      switchProvider: async (providerType: "mock" | "prisma") => {
-        try {
-          set({ isLoading: true, error: null });
-
-          // Call API to switch provider
-          const response = await fetch("/api/system/provider", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ provider: providerType }),
-          });
-
-          const data = await response.json();
-
-          if (!data.success) {
-            throw new Error(data.error?.message || "Failed to switch provider");
-          }
-
-          // Update store state
-          set({ currentProviderType: providerType });
-
-          // Refresh data with new provider
-          const { fetchUsers, fetchClassSessions, fetchDisciplines } = get();
-          await Promise.all([
-            fetchUsers(),
-            fetchClassSessions(),
-            fetchDisciplines(),
-          ]);
-
-          return true;
-        } catch (error) {
-          console.error(`Error switching to ${providerType} provider:`, error);
-          set({
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return false;
-        } finally {
-          set({ isLoading: false });
-        }
-      },
-
-      getProviderHealth: async () => {
-        try {
-          set({ isLoading: true, error: null });
-
-          const response = await fetch("/api/system/provider");
-          const data = await response.json();
-
-          if (data.success) {
-            return data.data.health;
-          } else {
-            throw new Error(
-              data.error?.message || "Failed to get provider health"
-            );
-          }
-        } catch (error) {
-          console.error("Error checking provider health:", error);
-          return {
-            type: get().currentProviderType,
-            status: "unhealthy" as const,
-            details: {
-              error: error instanceof Error ? error.message : String(error),
-            },
-          };
-        } finally {
-          set({ isLoading: false });
-        }
-      },
-
       // Banner actions
       addBanner: (bannerData) => {
         const newBanner: Banner = {
@@ -1172,6 +1142,81 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           .filter((banner) => banner.isActive)
           .sort((a, b) => a.order - b.order)
           .slice(0, 7); // Ensure max 7 banners
+      },
+
+      // Egreso actions
+      fetchEgresos: async () => {
+        try {
+          // Intentar usar la API primero
+          const response = await fetch("/api/expenses");
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              set({ egresos: data.data });
+              return;
+            }
+          }
+        } catch (error) {
+          console.log("API no disponible, usando datos en memoria");
+        }
+        // Fallback: mantener datos en memoria (no hacer nada)
+      },
+      addEgreso: async (egreso) => {
+        try {
+          // Intentar usar la API primero
+          const response = await fetch("/api/expenses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(egreso),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              // Actualizar el estado con el egreso creado por la API
+              set((state) => ({
+                egresos: [...state.egresos, data.data],
+              }));
+              return;
+            }
+          }
+        } catch (error) {
+          console.log("API no disponible, usando almacenamiento en memoria");
+        }
+
+        // Fallback: agregar en memoria como antes
+        set((state) => ({
+          egresos: [
+            ...state.egresos,
+            { ...egreso, id: `egreso_${Date.now()}` },
+          ],
+        }));
+      },
+      deleteEgreso: async (id) => {
+        try {
+          // Intentar usar la API primero
+          const response = await fetch(`/api/expenses/${id}`, {
+            method: "DELETE",
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              // Actualizar el estado eliminando el egreso
+              set((state) => ({
+                egresos: state.egresos.filter((e) => e.id !== id),
+              }));
+              return;
+            }
+          }
+        } catch (error) {
+          console.log("API no disponible, usando almacenamiento en memoria");
+        }
+
+        // Fallback: eliminar de memoria como antes
+        set((state) => ({
+          egresos: state.egresos.filter((e) => e.id !== id),
+        }));
       },
     }),
     {

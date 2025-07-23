@@ -234,3 +234,17 @@ model PerformanceMetric {
   @@index([timestamp])
   @@index([success])
 }
+
+// Expense model - for tracking business expenses
+model Expense {
+  id        String   @id @default(cuid())
+  motivo    String   // Reason for the expense
+  fecha     DateTime // Date of the expense
+  monto     Float    // Amount spent
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("expenses")
+  @@index([fecha])
+  @@index([createdAt])
+}

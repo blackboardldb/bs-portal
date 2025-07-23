@@ -4,13 +4,21 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, DollarSign, AlertTriangle, Zap, Heart } from "lucide-react";
+import {
+  Users,
+  DollarSign,
+  AlertTriangle,
+  Zap,
+  Heart,
+  MinusCircle,
+} from "lucide-react";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
 import type { FitCenterUserProfile } from "@/lib/types";
 import { useMemo, useEffect, useState } from "react";
+import Link from "next/link";
 
 export function AdminDashboard() {
-  const { users = [], fetchUsers } = useBlackSheepStore();
+  const { users = [], fetchUsers, egresos = [] } = useBlackSheepStore();
   const [isLoading, setIsLoading] = useState(true);
 
   // Cargar datos de usuarios al montar el componente
@@ -80,6 +88,16 @@ export function AdminDashboard() {
 
   const { monthlyRevenue } = revenueMetrics;
 
+  // Calcular egresos del mes actual
+  const now = new Date();
+  const egresosMes = egresos.filter((e) => {
+    const d = new Date(e.fecha);
+    return (
+      d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+    );
+  });
+  const totalEgresosMes = egresosMes.reduce((sum, e) => sum + e.monto, 0);
+
   // Tasa de retención (miembros activos vs total)
   const retentionRate =
     totalMembers > 0 ? ((activeMembers / totalMembers) * 100).toFixed(1) : "0";
@@ -91,38 +109,53 @@ export function AdminDashboard() {
     subtitle,
     icon: Icon,
     isLoading = false,
+    linkTo,
   }: {
     title: string;
     value: string | number;
     subtitle: string;
     icon: any;
     isLoading?: boolean;
-  }) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <>
-            <Skeleton className="h-8 w-16 mb-1" />
-            <Skeleton className="h-3 w-24" />
-          </>
-        ) : (
-          <>
-            <div className="text-2xl font-bold">{value}</div>
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
+    linkTo?: string;
+  }) => {
+    const CardComponent = (
+      <Card
+        className={
+          linkTo ? "cursor-pointer hover:shadow-md transition-shadow" : ""
+        }
+      >
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <>
+              <Skeleton className="h-8 w-16 mb-1" />
+              <Skeleton className="h-3 w-24" />
+            </>
+          ) : (
+            <>
+              <div className="text-2xl font-bold">{value}</div>
+              <p className="text-xs text-muted-foreground">{subtitle}</p>
+              {linkTo && (
+                <p className="text-xs text-blue-600 hover:text-blue-800 mt-1">
+                  Ver detalles →
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+
+    return linkTo ? <Link href={linkTo}>{CardComponent}</Link> : CardComponent;
+  };
 
   return (
     <div className="space-y-6 mb-16">
       {/* Estadísticas Principales */}
-      <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Total Miembros"
           value={totalMembers}
@@ -137,6 +170,16 @@ export function AdminDashboard() {
           subtitle={`${activeMembers} miembros activos`}
           icon={DollarSign}
           isLoading={isLoading}
+          linkTo="/admin/finanzas"
+        />
+
+        <MetricCard
+          title="Egresos Mensuales"
+          value={`$${totalEgresosMes.toLocaleString()}`}
+          subtitle={`${egresosMes.length} gastos este mes`}
+          icon={MinusCircle}
+          isLoading={isLoading}
+          linkTo="/admin/finanzas"
         />
 
         <MetricCard
