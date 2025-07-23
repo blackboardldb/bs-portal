@@ -231,6 +231,20 @@ psql -h localhost -U blacksheep_user -d blacksheep_db -c "SELECT version();"
 
      @@map("membership_plans")
    }
+
+   // Expense model - for tracking business expenses
+   model Expense {
+     id        String   @id @default(cuid())
+     motivo    String   // Reason for the expense
+     fecha     DateTime // Date of the expense
+     monto     Float    // Amount spent
+     createdAt DateTime @default(now())
+     updatedAt DateTime @updatedAt
+
+     @@map("expenses")
+     @@index([fecha])
+     @@index([createdAt])
+   }
    ```
 
 3. **Generate Migration**
@@ -356,6 +370,9 @@ psql -h localhost -U blacksheep_user -d blacksheep_db -c "SELECT version();"
 
    # Test discipline operations
    curl http://localhost:3000/api/disciplines
+
+   # Test expense operations (admin only)
+   curl http://localhost:3000/api/expenses
    ```
 
 2. **Run Health Check**
@@ -402,6 +419,13 @@ async function verifyMigration() {
       "classes found"
     );
 
+    const expensesResponse = await axios.get(`${baseUrl}/api/expenses?limit=5`);
+    console.log(
+      "✓ Expenses API:",
+      expensesResponse.data.data.length,
+      "expenses found"
+    );
+
     console.log("\n🎉 Migration verification completed successfully!");
   } catch (error) {
     console.error("❌ Migration verification failed:", error.message);
@@ -428,6 +452,8 @@ node scripts/verify-migration.js
 - [ ] Discipline operations work
 - [ ] Instructor operations work
 - [ ] Plan operations work
+- [ ] Expense operations work (admin)
+- [ ] Financial calculations are correct
 - [ ] Frontend components load correctly
 - [ ] No console errors in browser
 - [ ] Performance is acceptable
@@ -566,6 +592,8 @@ Monitor logs for:
    CREATE INDEX idx_users_email ON users(email);
    CREATE INDEX idx_class_sessions_date ON class_sessions(date_time);
    CREATE INDEX idx_class_sessions_discipline ON class_sessions(discipline_id);
+   CREATE INDEX idx_expenses_fecha ON expenses(fecha);
+   CREATE INDEX idx_expenses_created_at ON expenses(created_at);
    ```
 
 2. **Connection Pooling**
