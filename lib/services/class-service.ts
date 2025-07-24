@@ -5,7 +5,7 @@ import { BaseService } from "./base-service";
 import { ClassSession } from "../types";
 import { ClassRepository } from "../data-layer/types";
 import { ApiResponse, PaginatedApiResponse } from "../api/types";
-import { generatedSchemas, validateWithSchema } from "../types/generator";
+// Removed unused imports
 import { ValidationError } from "../errors/types";
 
 export class ClassService extends BaseService<ClassSession> {
@@ -28,13 +28,18 @@ export class ClassService extends BaseService<ClassSession> {
     instructorId?: string;
     status?: string;
   }): Promise<PaginatedApiResponse<ClassSession>> {
-    const findParams: any = {
+    const findParams: {
+      page: number;
+      limit: number;
+      where?: Record<string, unknown>;
+      orderBy?: Record<string, "asc" | "desc">;
+    } = {
       page: params?.page || 1,
       limit: params?.limit || 50,
     };
 
     // Build where clause
-    const where: any = {};
+    const where: Record<string, unknown> = {};
 
     if (params?.disciplineId) {
       where.disciplineId = params.disciplineId;
@@ -50,13 +55,14 @@ export class ClassService extends BaseService<ClassSession> {
 
     // Date range filtering
     if (params?.startDate || params?.endDate) {
-      where.dateTime = {};
+      const dateTimeFilter: Record<string, Date> = {};
       if (params.startDate) {
-        where.dateTime.gte = new Date(params.startDate);
+        dateTimeFilter.gte = new Date(params.startDate);
       }
       if (params.endDate) {
-        where.dateTime.lte = new Date(params.endDate);
+        dateTimeFilter.lte = new Date(params.endDate);
       }
+      where.dateTime = dateTimeFilter;
     }
 
     if (Object.keys(where).length > 0) {
@@ -139,7 +145,9 @@ export class ClassService extends BaseService<ClassSession> {
 
   // Validation hooks (override from BaseService)
 
-  protected async validateCreateData(data: any): Promise<void> {
+  protected async validateCreateData(
+    data: Partial<ClassSession>
+  ): Promise<void> {
     // Validate required fields
     if (!data.disciplineId || !data.instructorId || !data.dateTime) {
       throw new ValidationError(
@@ -171,8 +179,8 @@ export class ClassService extends BaseService<ClassSession> {
 
   protected async validateUpdateData(
     id: string,
-    data: any,
-    existingRecord: ClassSession
+    data: Partial<ClassSession>,
+    _existingRecord: ClassSession
   ): Promise<void> {
     // Same validations as create, but only for provided fields
     if (data.dateTime && isNaN(Date.parse(data.dateTime))) {

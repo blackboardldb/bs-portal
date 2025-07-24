@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/mock-database";
-import {
-  startOfDay,
-  endOfDay,
-  eachDayOfInterval,
-  getDay,
-  format,
-  parseISO,
-} from "date-fns";
+import { eachDayOfInterval, getDay, format } from "date-fns";
 import { ClassSession, DayOfWeek } from "@/lib/types";
-import { createLocalDate, localToUTC } from "@/lib/utils";
+import { createLocalDate } from "@/lib/utils";
 
 /**
  * Genera clases para un día específico basado en los horarios de las disciplinas.
  * Esta función NO guarda en la base de datos, solo genera los objetos.
  */
-function generateClassesForDay(day: Date, disciplines: any[]): ClassSession[] {
+function generateClassesForDay(
+  day: Date,
+  disciplines: Array<{
+    id: string;
+    name: string;
+    schedule?: Array<{ day: number; times: string[] }>;
+  }>
+): ClassSession[] {
   const dayMapping: DayOfWeek[] = [
     "dom",
     "lun",
@@ -26,10 +26,10 @@ function generateClassesForDay(day: Date, disciplines: any[]): ClassSession[] {
     "sab",
   ];
   const dayOfWeek = dayMapping[getDay(day)];
-  const generatedClasses: any[] = [];
+  const generatedClasses: ClassSession[] = [];
 
   disciplines.forEach((discipline) => {
-    discipline.schedule?.forEach((s: any) => {
+    discipline.schedule?.forEach((s: { day: number; times: string[] }) => {
       if (s.day === dayOfWeek) {
         s.times.forEach((time: string) => {
           const [hour, minute] = time.split(":");
@@ -75,7 +75,11 @@ function generateClassesForDay(day: Date, disciplines: any[]): ClassSession[] {
 function generateClassesForDateRange(
   startDate: Date,
   endDate: Date,
-  disciplines: any[]
+  disciplines: Array<{
+    id: string;
+    name: string;
+    schedule?: Array<{ day: number; times: string[] }>;
+  }>
 ): ClassSession[] {
   const allClasses: ClassSession[] = [];
   const daysInRange = eachDayOfInterval({ start: startDate, end: endDate });

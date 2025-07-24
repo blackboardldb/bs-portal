@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Importar el mock storage del archivo principal
 // En una implementación real, esto vendría de la base de datos
-let expenses: any[] = [];
+const expenses: Array<{
+  id: string;
+  motivo: string;
+  fecha: string;
+  monto: number;
+}> = [];
 
 export async function DELETE(
   request: NextRequest,

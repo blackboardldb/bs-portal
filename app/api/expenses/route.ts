@@ -15,7 +15,7 @@ export type Expense = {
 const prisma = new PrismaClient();
 
 // Mock storage (fallback en memoria)
-let expenses: Expense[] = [];
+const expenses: Expense[] = [];
 
 export async function GET(request: NextRequest) {
   try {

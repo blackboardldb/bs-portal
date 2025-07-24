@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/mock-database";
-import { localToUTC, createLocalDate } from "@/lib/utils";
+import { localToUTC } from "@/lib/utils";
 
 // Helper function to create local date string without timezone conversion
+// Currently unused but kept for future use
+/*
 function createLocalDateTime(
   date: Date,
   hours: number,
@@ -26,6 +28,7 @@ function createLocalDateTime(
 
   return `${formattedYear}-${formattedMonth}-${formattedDay}T${formattedHour}:${formattedMinute}:${formattedSecond}`;
 }
+*/
 
 export async function POST(request: NextRequest) {
   try {

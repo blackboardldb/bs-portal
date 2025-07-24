@@ -31,7 +31,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { initialMembershipPlans } from "@/lib/mock-data";
 import type { FitCenterUserProfile } from "@/lib/types";
-import { usePagination, usePaginationControls } from "@/lib/use-pagination";
+// Removed unused pagination imports
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateShort } from "@/lib/utils";
 
@@ -46,8 +46,8 @@ export default function AlumnosPage() {
     users = [],
     fetchUsers,
     pagination,
-    updateUser,
-    addUser,
+    // updateUser, // Currently unused
+    // addUser, // Currently unused
     createUser,
     updateUserById,
   } = useBlackSheepStore();

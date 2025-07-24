@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -36,16 +34,7 @@ import { ClassSession, DayOfWeek } from "@/lib/types";
 import AdminClassDetailDrawer from "./admin-class-detail-drawer";
 import ClassCard from "./class-card";
 import { useClassSchedule } from "@/lib/hooks/useClassSchedule";
-import {
-  Plus,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  AlertTriangle,
-  User,
-  Clock,
-  Users,
-} from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import {
   startOfMonth,
   endOfMonth,
@@ -58,16 +47,10 @@ import {
   format,
   parseISO,
 } from "date-fns";
-import { es } from "date-fns/locale";
 import {
   formatDateLocal,
-  formatTimeLocal,
-  formatWeekday,
   toDateString,
   toTimeString,
-  createLocalDate,
-  localToUTC,
-  getDayOfWeekShort,
   isClassPast,
 } from "@/lib/utils";
 
@@ -127,9 +110,7 @@ export function Calendar() {
     new Set()
   );
   const [isCancelling, setIsCancelling] = useState(false);
-  const [cancellationError, setCancellationError] = useState<string | null>(
-    null
-  );
+  const [, setCancellationError] = useState<string | null>(null);
 
   // Estados para el formulario de clase extra
   const [extraClassForm, setExtraClassForm] = useState<ExtraClassFormData>({
@@ -151,10 +132,8 @@ export function Calendar() {
   // CONTEXTO: `classSessions` del store ahora se usará para obtener datos históricos
   // o para sobreescribir las clases generadas si ya existen en la "base de datos".
   const {
-    users,
     instructors,
     disciplines,
-    fetchClassSessions,
     fetchUsers,
     fetchInstructors,
     fetchDisciplines,
@@ -162,26 +141,26 @@ export function Calendar() {
 
   const { toast } = useToast();
 
-  // Helper function for retry mechanism
-  const retryOperation = useCallback(
-    async (operation: () => Promise<void>, maxRetries = 2) => {
-      let attempts = 0;
-      while (attempts < maxRetries) {
-        try {
-          await operation();
-          return;
-        } catch (error) {
-          attempts++;
-          if (attempts >= maxRetries) {
-            throw error;
-          }
-          // Wait before retry
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-    },
-    []
-  );
+  // Helper function for retry mechanism (currently unused but kept for future use)
+  // const retryOperation = useCallback(
+  //   async (operation: () => Promise<void>, maxRetries = 2) => {
+  //     let attempts = 0;
+  //     while (attempts < maxRetries) {
+  //       try {
+  //         await operation();
+  //         return;
+  //       } catch (error) {
+  //         attempts++;
+  //         if (attempts >= maxRetries) {
+  //           throw error;
+  //         }
+  //         // Wait before retry
+  //         await new Promise((resolve) => setTimeout(resolve, 1000));
+  //       }
+  //     }
+  //   },
+  //   []
+  // );
 
   // Helper functions for cancelled classes
   const isClassCancelled = useCallback(
@@ -218,7 +197,13 @@ export function Calendar() {
       });
     };
     loadData();
-  }, [fetchUsers, fetchInstructors, fetchDisciplines]);
+  }, [
+    fetchUsers,
+    fetchInstructors,
+    fetchDisciplines,
+    disciplines,
+    instructors.length,
+  ]);
 
   // CONTEXTO: Función helper para formatear fechas sin problemas de zona horaria
   const formatDateForDisplay = (dateString: string) => {
@@ -250,7 +235,7 @@ export function Calendar() {
           }
           return true;
         })
-        .map((cls: any): TransformedClass => {
+        .map((cls: ClassSession): TransformedClass => {
           const discipline = disciplines?.find(
             (d) => d.id === cls.disciplineId
           );
@@ -259,7 +244,7 @@ export function Calendar() {
             ? `${instructor.firstName} ${instructor.lastName}`
             : "";
 
-          const classDate = new Date(cls.dateTime);
+          // const classDate = new Date(cls.dateTime); // Currently unused
           const isGenerated = cls.isGenerated || cls.id.startsWith("gen_");
 
           return {
@@ -273,7 +258,7 @@ export function Calendar() {
             status: cls.status,
             discipline: discipline?.name || "Desconocida",
             disciplineId: cls.disciplineId,
-            date: cls.dateLocal || toDateString(new Date(cls.dateTime)), // USAR FECHA LOCAL
+            date: toDateString(new Date(cls.dateTime)), // USAR FECHA LOCAL
             time: toTimeString(cls.dateTime),
             color: discipline?.color || "#3b82f6",
             capacity: cls.capacity,
@@ -418,9 +403,9 @@ export function Calendar() {
 
         // Agregar la clase directamente al estado sin recargar
         if (result.classes && result.classes.length > 0) {
-          const newClasses = result.classes.map((cls: any) => ({
+          const newClasses = result.classes.map((cls: ClassSession) => ({
             ...cls,
-            dateLocal: classData.date,
+            // dateLocal: classData.date, // Removed as it's not part of ClassSession type
             // Asegurar que tenga todos los campos necesarios
             registeredParticipantsIds: cls.registeredParticipantsIds || [],
             waitlistParticipantsIds: cls.waitlistParticipantsIds || [],

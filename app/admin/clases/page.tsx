@@ -5,20 +5,12 @@ import AdminWeeklyDatePicker from "@/components/admincomponents/admin-weekly-dat
 import AdminClassList from "@/components/admincomponents/admin-class-list";
 import AdminClassDetailDrawer from "@/components/admincomponents/admin-class-detail-drawer";
 import { useBlackSheepStore } from "@/lib/blacksheep-store";
-import { startOfDay, format, isPast, parseISO, isToday } from "date-fns";
+import { startOfDay, format, isPast } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ClassSession, ClassListItem } from "@/lib/types";
-import {
-  formatTimeLocal,
-  formatWeekday,
-  formatDayMonth,
-  toDateString,
-  toTimeString,
-  createLocalDate,
-  localToUTC,
-} from "@/lib/utils";
+import { toDateString, toTimeString, createLocalDate } from "@/lib/utils";
 import {
   startOfMonth,
   endOfMonth,
@@ -38,7 +30,7 @@ const isClassPast = (dateTime: string | Date) => isPast(new Date(dateTime));
 
 export default function AdminClasesPage() {
   const {
-    classSessions,
+    // classSessions, // Currently unused
     disciplines,
     users,
     fetchClassSessions,
@@ -64,7 +56,7 @@ export default function AdminClasesPage() {
 
   // CONTEXTO: Usar la misma lógica que el calendario - clases generadas dinámicamente
   const [monthlyClasses, setMonthlyClasses] = useState<ClassSession[]>([]);
-  const [isGeneratingClasses, setIsGeneratingClasses] = useState(false);
+  const [, setIsGeneratingClasses] = useState(false);
 
   // CONTEXTO: Función de conversión enriquecida. Ahora busca también el instructor
   // y formatea más datos para que el ClassListItem sea completo y funcional con el drawer.
@@ -104,7 +96,14 @@ export default function AdminClasesPage() {
 
   // CONTEXTO: Función para generar clases dinámicamente (igual que el calendario)
   const generateClassesForMonth = useCallback(
-    (date: Date, disciplines: any[]) => {
+    (
+      date: Date,
+      disciplines: Array<{
+        id: string;
+        name: string;
+        schedule?: Array<{ day: number; times: string[] }>;
+      }>
+    ) => {
       const start = startOfMonth(date);
       const end = endOfMonth(date);
       const daysInMonth = eachDayOfInterval({ start, end });
@@ -125,7 +124,7 @@ export default function AdminClasesPage() {
 
         disciplines.forEach((discipline) => {
           const scheduleForDay = discipline.schedule?.find(
-            (s: any) => s.day === dayOfWeek
+            (s: { day: number; times: string[] }) => s.day === dayOfWeek
           );
           if (scheduleForDay) {
             scheduleForDay.times.forEach((time: string) => {
@@ -230,10 +229,13 @@ export default function AdminClasesPage() {
   }, [selectedDate, disciplines, generateClassesForMonth, fetchClassSessions]);
 
   // Manejar cambio de fecha
-  const handleDateSelect = useCallback((date: Date) => {
-    setSelectedDate(date);
-    setPage(1); // Resetear a la primera página al cambiar fecha
-  }, []);
+  const handleDateSelect = useCallback(
+    (date: Date) => {
+      setSelectedDate(date);
+      setPage(1); // Resetear a la primera página al cambiar fecha
+    },
+    [disciplines]
+  );
 
   // CONTEXTO: Filtrado inteligente para optimizar performance y UX
   const activeClasses = useMemo(() => {

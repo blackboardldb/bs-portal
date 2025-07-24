@@ -5,8 +5,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { initialUsers } from "./mock-data";
 import { initialClasses as initialClassSessions } from "./mock-data";
-import { initialDisciplines } from "./mock-data";
-import { initialInstructors } from "./mock-data";
+// Removed unused imports
 import { initialMembershipPlans as initialPlans } from "./mock-data";
 import { initialOrganization } from "./mock-data";
 import { initialBanners } from "./mock-data";
@@ -20,11 +19,11 @@ import type {
   Banner,
 } from "./types";
 import { UserService } from "./services/user-service";
-import { ApiResponse, PaginatedApiResponse } from "./api/types";
+// Removed unused import
 
 // Create missing mock data
-const initialClassRegistrations: any[] = [];
-const initialMembershipRenewals: any[] = [];
+const initialClassRegistrations: unknown[] = [];
+const initialMembershipRenewals: unknown[] = [];
 
 // NUEVO: Tipo para el estado de paginación
 export interface PaginationState {
@@ -53,11 +52,11 @@ interface BlackSheepStore {
   plans: Plan[];
   membershipPlans: Plan[];
   initialOrganization: Organization | null;
-  classRegistrations: any[];
-  membershipRenewals: any[];
+  classRegistrations: unknown[];
+  membershipRenewals: unknown[];
   selectedUser: User | null;
   searchResults: User[];
-  userStats: any;
+  userStats: Record<string, unknown> | null;
   isLoading: boolean;
   error: string | null;
   banners: Banner[];
@@ -152,14 +151,14 @@ interface BlackSheepStore {
   fetchOrganization: () => void;
 
   // Registration actions
-  addClassRegistration: (registration: any) => void;
-  updateClassRegistration: (registration: any) => void;
+  addClassRegistration: (registration: unknown) => void;
+  updateClassRegistration: (registration: unknown) => void;
   deleteClassRegistration: (registrationId: string) => void;
   fetchClassRegistrations: () => void;
 
   // Renewal actions
-  addMembershipRenewal: (renewal: any) => void;
-  updateMembershipRenewal: (renewal: any) => void;
+  addMembershipRenewal: (renewal: unknown) => void;
+  updateMembershipRenewal: (renewal: unknown) => void;
   deleteMembershipRenewal: (renewalId: string) => void;
   fetchMembershipRenewals: () => void;
   requestPlanRenewal: (
@@ -506,7 +505,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
           // Filtrar por fecha si se especifica
           let filteredClasses = allClasses;
           if (startDate || endDate) {
-            filteredClasses = allClasses.filter((session: any) => {
+            filteredClasses = allClasses.filter((session: ClassSession) => {
               const sessionDate = new Date(session.dateTime);
               const start = startDate ? new Date(startDate) : null;
               const end = endDate ? new Date(endDate) : null;
@@ -875,7 +874,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
 
           // Ensure all plans have required properties
           const validPlans = plans.filter(
-            (plan: any) => plan && plan.id && plan.name
+            (plan: Plan) => plan && plan.id && plan.name
           );
 
           set({ plans: validPlans });
@@ -1156,7 +1155,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
               return;
             }
           }
-        } catch (error) {
+        } catch {
           console.log("API no disponible, usando datos en memoria");
         }
         // Fallback: mantener datos en memoria (no hacer nada)
@@ -1180,7 +1179,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
               return;
             }
           }
-        } catch (error) {
+        } catch {
           console.log("API no disponible, usando almacenamiento en memoria");
         }
 
@@ -1209,7 +1208,7 @@ export const useBlackSheepStore = create<BlackSheepStore>()(
               return;
             }
           }
-        } catch (error) {
+        } catch {
           console.log("API no disponible, usando almacenamiento en memoria");
         }
 
