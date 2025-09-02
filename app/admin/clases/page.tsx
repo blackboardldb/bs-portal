@@ -9,7 +9,7 @@ import { startOfDay, format, isPast } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ClassSession, ClassListItem } from "@/lib/types";
+import type { ClassSession, ClassListItem, Discipline } from "@/lib/types";
 import { toDateString, toTimeString, createLocalDate } from "@/lib/utils";
 import {
   startOfMonth,
@@ -22,7 +22,13 @@ import {
 import type { DayOfWeek } from "@/lib/types";
 
 // Utilidad para saber si una clase es pasada
-const isClassPast = (dateTime: string | Date) => isPast(new Date(dateTime));
+const isClassPast = (dateTime: string | Date): boolean =>
+  isPast(new Date(dateTime));
+
+// Función simple para convertir fecha local a UTC ISO string
+function localToUTC(date: Date): string {
+  return new Date(date).toISOString();
+}
 
 // CONTEXTO: Este tipo se ha enriquecido para ser 100% compatible con AdminClassDetailDrawer.
 // Ahora contiene toda la información necesaria para que el drawer muestre
@@ -94,43 +100,40 @@ export default function AdminClasesPage() {
     [disciplines, users]
   );
 
-  // CONTEXTO: Función para generar clases dinámicamente (igual que el calendario)
+  // Función para generar clases dinámicamente (igual que el calendario)
   const generateClassesForMonth = useCallback(
-    (
-      date: Date,
-      disciplines: Array<{
-        id: string;
-        name: string;
-        schedule?: Array<{ day: number; times: string[] }>;
-      }>
-    ) => {
+    (date: Date, disciplines: Discipline[]) => {
       const start = startOfMonth(date);
       const end = endOfMonth(date);
       const daysInMonth = eachDayOfInterval({ start, end });
-      const dayMapping: DayOfWeek[] = [
-        "dom",
-        "lun",
-        "mar",
-        "mie",
-        "jue",
-        "vie",
-        "sab",
-      ];
 
       const generatedClasses: ClassSession[] = [];
 
       daysInMonth.forEach((day) => {
-        const dayOfWeek = dayMapping[getDay(day)];
+        const dayOfWeekNumber = getDay(day); // 0-6
 
         disciplines.forEach((discipline) => {
-          const scheduleForDay = discipline.schedule?.find(
-            (s: { day: number; times: string[] }) => s.day === dayOfWeek
-          );
+          // Si el schedule usa DayOfWeek (string), conviértelo a número para comparar
+          const scheduleForDay = discipline.schedule?.find((s) => {
+            if (typeof s.day === "string") {
+              // Mapear DayOfWeek a número
+              const dayMap: Record<DayOfWeek, number> = {
+                dom: 0,
+                lun: 1,
+                mar: 2,
+                mie: 3,
+                jue: 4,
+                vie: 5,
+                sab: 6,
+              };
+              return dayMap[s.day as DayOfWeek] === dayOfWeekNumber;
+            }
+            return s.day === dayOfWeekNumber;
+          });
           if (scheduleForDay) {
             scheduleForDay.times.forEach((time: string) => {
               const [hour, minute] = time.split(":");
 
-              // Usar las nuevas funciones de zona horaria
               const localDate = createLocalDate(
                 day.getFullYear(),
                 day.getMonth() + 1,
@@ -138,7 +141,7 @@ export default function AdminClasesPage() {
                 parseInt(hour, 10),
                 parseInt(minute, 10)
               );
-              const classDateTime = localToUTC(localDate, time);
+              const classDateTime = localToUTC(localDate);
 
               generatedClasses.push({
                 id: `gen_${discipline.id}_${format(
@@ -165,7 +168,7 @@ export default function AdminClasesPage() {
 
       setMonthlyClasses(generatedClasses);
     },
-    []
+    [setMonthlyClasses]
   );
 
   // Función para cargar clases con filtrado por fecha
@@ -229,18 +232,15 @@ export default function AdminClasesPage() {
   }, [selectedDate, disciplines, generateClassesForMonth, fetchClassSessions]);
 
   // Manejar cambio de fecha
-  const handleDateSelect = useCallback(
-    (date: Date) => {
-      setSelectedDate(date);
-      setPage(1); // Resetear a la primera página al cambiar fecha
-    },
-    [disciplines]
-  );
+  const handleDateSelect = useCallback((date: Date) => {
+    setSelectedDate(date);
+    setPage(1); // Resetear a la primera página al cambiar fecha
+  }, []);
 
   // CONTEXTO: Filtrado inteligente para optimizar performance y UX
   const activeClasses = useMemo(() => {
     return monthlyClasses
-      .filter((session) => {
+      .filter((session: ClassSession) => {
         // Filtrar por fecha seleccionada
         const sessionDate = new Date(session.dateTime);
         const isSameDate =
@@ -253,12 +253,12 @@ export default function AdminClasesPage() {
         if (session.status === "cancelled") return false;
 
         // OPTIMIZACIÓN: Ocultar clases pasadas sin usuarios inscritos
-        const isPast = isClassPast(session.dateTime);
+        const isPastClass = isClassPast(session.dateTime);
         const hasUsers = session.registeredParticipantsIds.length > 0;
         const isGenerated = session.id.startsWith("gen_");
 
         // Si es una clase pasada, generada y sin usuarios, no mostrarla
-        if (isPast && isGenerated && !hasUsers) {
+        if (isPastClass && isGenerated && !hasUsers) {
           return false;
         }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/mock-database";
-import { localToUTC } from "@/lib/utils";
+import { localToUTC, createLocalDate } from "@/lib/utils";
 
 // Helper function to create local date string without timezone conversion
 // Currently unused but kept for future use
