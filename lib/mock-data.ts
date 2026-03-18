@@ -329,112 +329,14 @@ export const initialMembershipPlans: MembershipPlan[] = [
 
 export const initialInstructors: Instructor[] = [
   {
-    id: "inst_vito_001",
+    id: "inst_blacksheep_admin",
     organizationId: "org_blacksheep_001",
-    firstName: "Vito",
-    lastName: "Corleone",
-    email: "vito@blacksheep.com",
-    specialties: ["disc_crossfit_001"],
+    firstName: "Administrador",
+    lastName: "BlackSheep",
+    email: "admin@blacksheep.com",
+    specialties: ["disc_crossfit_001", "disc_weightlifting_001", "disc_crossbalance_001", "disc_pilates_001"],
     isActive: true,
-  },
-  {
-    id: "inst_camilo_001",
-    organizationId: "org_blacksheep_001",
-    firstName: "Camilo",
-    lastName: "Soto",
-    email: "camilo@blacksheep.com",
-    specialties: ["disc_weightlifting_001"],
-    isActive: true,
-  },
-  {
-    id: "inst_manu_001",
-    organizationId: "org_blacksheep_001",
-    firstName: "Manu",
-    lastName: "González",
-    email: "manu@blacksheep.com",
-    specialties: ["disc_crossbalance_001"],
-    isActive: true,
-  },
-  // Test Instructor 1
-  {
-    id: "inst_test_001",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 1",
-    email: "test.instructor1@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
-  // Test Instructor 2
-  {
-    id: "inst_test_002",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 2",
-    email: "test.instructor2@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
-  // Test Instructor 3
-  {
-    id: "inst_test_003",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 3",
-    email: "test.instructor3@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
-  // Test Instructor 4
-  {
-    id: "inst_test_004",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 4",
-    email: "test.instructor4@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
-  // Test Instructor 5
-  {
-    id: "inst_test_005",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 5",
-    email: "test.instructor5@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
-  // Test Instructor 6
-  {
-    id: "inst_test_006",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 6",
-    email: "test.instructor6@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
-  // Test Instructor 7
-  {
-    id: "inst_test_007",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 7",
-    email: "test.instructor7@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
-  // Test Instructor 8
-  {
-    id: "inst_test_008",
-    organizationId: "org_blacksheep_001",
-    firstName: "Test",
-    lastName: "Instructor 8",
-    email: "test.instructor8@email.com",
-    specialties: ["disc_crossfit_001"],
-    isActive: true,
-  },
+  }
 ];
 
 // === PERFIL DE ANTONIA OVEJERO (PARA LA VISTA CLIENTE) ===
@@ -455,9 +357,9 @@ export const antoniaOvejeroProfile: FitCenterUserProfile = {
     membershipType: "Básico",
     planId: "plan_basico_001",
     monthlyPrice: 35000,
-    startDate: "2025-07-01",
-    currentPeriodStart: "2025-07-01",
-    currentPeriodEnd: "2025-07-31",
+    startDate: "2026-03-01",
+    currentPeriodStart: "2026-03-01",
+    currentPeriodEnd: "2026-03-31",
     planConfig: {
       classLimit: 8,
       disciplineAccess: "all",

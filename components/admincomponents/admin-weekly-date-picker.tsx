@@ -50,9 +50,17 @@ export default function AdminWeeklyDatePicker({
     setCurrentWeekStart(getWeekStart(selectedDate));
   }, [selectedDate]);
 
+  // Calcular límites de navegación
+  const realCurrentWeekStart = getWeekStart(new Date());
+  const maxWeekStart = new Date(realCurrentWeekStart);
+  maxWeekStart.setDate(realCurrentWeekStart.getDate() + 28); // 4 semanas máximo al futuro
+
+  const canGoPrevious = currentWeekStart > realCurrentWeekStart;
+  const canGoNext = currentWeekStart < maxWeekStart;
+
   // Navigate to previous week
   const goToPreviousWeek = () => {
-    if (isTransitioning) return;
+    if (isTransitioning || !canGoPrevious) return;
     setIsTransitioning(true);
     const newWeekStart = new Date(currentWeekStart);
     newWeekStart.setDate(currentWeekStart.getDate() - 7);
@@ -62,7 +70,7 @@ export default function AdminWeeklyDatePicker({
 
   // Navigate to next week
   const goToNextWeek = () => {
-    if (isTransitioning) return;
+    if (isTransitioning || !canGoNext) return;
     setIsTransitioning(true);
     const newWeekStart = new Date(currentWeekStart);
     newWeekStart.setDate(currentWeekStart.getDate() + 7);
@@ -161,8 +169,8 @@ export default function AdminWeeklyDatePicker({
           <div className="flex items-center space-x-2">
             <button
               onClick={goToPreviousWeek}
-              disabled={isTransitioning}
-              className="p-2 rounded-full hover:bg-zinc-100 transition-colors disabled:opacity-50"
+              disabled={isTransitioning || !canGoPrevious}
+              className={`p-2 rounded-full transition-colors ${!canGoPrevious ? 'opacity-30 cursor-not-allowed' : 'hover:bg-zinc-100'}`}
               aria-label="Previous week"
             >
               <svg
@@ -181,8 +189,8 @@ export default function AdminWeeklyDatePicker({
             </button>
             <button
               onClick={goToNextWeek}
-              disabled={isTransitioning}
-              className="p-2 rounded-full hover:bg-zinc-100 transition-colors disabled:opacity-50"
+              disabled={isTransitioning || !canGoNext}
+              className={`p-2 rounded-full transition-colors ${!canGoNext ? 'opacity-30 cursor-not-allowed' : 'hover:bg-zinc-100'}`}
               aria-label="Next week"
             >
               <svg

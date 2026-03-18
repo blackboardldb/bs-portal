@@ -160,37 +160,7 @@ export default function AdminClassDetailDrawer({
 
     setIsAddingStudent(true);
     try {
-      // Si es una clase generada dinámicamente, primero crearla en la base de datos
-      let classId = currentClassItem.id;
-      if (currentClassItem.id.startsWith("gen_")) {
-        const createPayload = {
-          startDate: currentClassItem.dateTime.split("T")[0],
-          endDate: currentClassItem.dateTime.split("T")[0],
-          disciplineId: currentClassItem.disciplineId,
-          instructorId: "inst_default",
-          time: currentClassItem.dateTime.split("T")[1].substring(0, 5),
-          maxCapacity: currentClassItem.capacity || 15,
-        };
-
-        const createResponse = await fetch("/api/classes/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(createPayload),
-        });
-
-        if (createResponse.ok) {
-          const createResult = await createResponse.json();
-          classId = createResult.classes[0].id;
-        } else {
-          const errorData = await createResponse.json();
-          toast({
-            title: "Error al crear clase",
-            description: errorData.error || "Error desconocido",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
+      const classId = currentClassItem.id;
 
       // Llamada a la API para agregar estudiante
       const response = await fetch(`/api/classes/${classId}/admin/register`, {

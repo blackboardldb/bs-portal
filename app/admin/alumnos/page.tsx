@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AddStudentModal } from "../../../components/admincomponents/add-student-modal";
-import { StudentEditModal } from "../../../components/admincomponents/student-edit-modal";
 import {
   useBlackSheepStore,
   STUDENT_STATES,
@@ -40,8 +39,10 @@ const formatDate = (dateString: string | undefined): string => {
   if (!dateString) return "-";
   return formatDateShort(dateString);
 };
+import { useRouter } from "next/navigation";
 
 export default function AlumnosPage() {
+  const router = useRouter();
   const {
     users = [],
     fetchUsers,
@@ -65,8 +66,6 @@ export default function AlumnosPage() {
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
-  const [editingStudent, setEditingStudent] =
-    useState<FitCenterUserProfile | null>(null);
   const limit = 10;
 
   // Cargar usuarios al montar el componente y cuando cambian filtros/página
@@ -104,11 +103,7 @@ export default function AlumnosPage() {
   };
 
   const handleEditStudent = (student: FitCenterUserProfile) => {
-    setEditingStudent(student);
-  };
-
-  const handleCloseEditModal = () => {
-    setEditingStudent(null);
+    router.push(`/admin/alumnos/${student.id}`);
   };
 
   // Paginación real desde el store
@@ -309,39 +304,6 @@ export default function AlumnosPage() {
           </Table>
         </div>
       </Card>
-
-      <StudentEditModal
-        student={editingStudent}
-        onEdit={async (updatedStudent) => {
-          const result = await updateUserById(
-            updatedStudent.id,
-            updatedStudent
-          );
-          if (result) {
-            toast({
-              title: "Alumno actualizado",
-              description: "El alumno se ha actualizado correctamente",
-            });
-          } else {
-            toast({
-              title: "Error",
-              description: "Error al actualizar el alumno",
-              variant: "destructive",
-            });
-          }
-        }}
-        onClose={handleCloseEditModal}
-        onSuccess={() => {
-          // Refreshar la lista después de editar
-          fetchUsers(
-            page,
-            limit,
-            searchTerm,
-            undefined, // No filtrar por rol específico (incluye usuarios sin rol = alumnos)
-            statusFilter !== "todos" ? statusFilter : undefined
-          );
-        }}
-      />
     </div>
   );
 }

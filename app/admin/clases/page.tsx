@@ -36,7 +36,7 @@ function localToUTC(date: Date): string {
 
 export default function AdminClasesPage() {
   const {
-    // classSessions, // Currently unused
+    classSessions,
     disciplines,
     users,
     fetchClassSessions,
@@ -59,10 +59,6 @@ export default function AdminClasesPage() {
     null
   );
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
-
-  // CONTEXTO: Usar la misma lógica que el calendario - clases generadas dinámicamente
-  const [monthlyClasses, setMonthlyClasses] = useState<ClassSession[]>([]);
-  const [, setIsGeneratingClasses] = useState(false);
 
   // CONTEXTO: Función de conversión enriquecida. Ahora busca también el instructor
   // y formatea más datos para que el ClassListItem sea completo y funcional con el drawer.
@@ -100,76 +96,6 @@ export default function AdminClasesPage() {
     [disciplines, users]
   );
 
-  // Función para generar clases dinámicamente (igual que el calendario)
-  const generateClassesForMonth = useCallback(
-    (date: Date, disciplines: Discipline[]) => {
-      const start = startOfMonth(date);
-      const end = endOfMonth(date);
-      const daysInMonth = eachDayOfInterval({ start, end });
-
-      const generatedClasses: ClassSession[] = [];
-
-      daysInMonth.forEach((day) => {
-        const dayOfWeekNumber = getDay(day); // 0-6
-
-        disciplines.forEach((discipline) => {
-          // Si el schedule usa DayOfWeek (string), conviértelo a número para comparar
-          const scheduleForDay = discipline.schedule?.find((s) => {
-            if (typeof s.day === "string") {
-              // Mapear DayOfWeek a número
-              const dayMap: Record<DayOfWeek, number> = {
-                dom: 0,
-                lun: 1,
-                mar: 2,
-                mie: 3,
-                jue: 4,
-                vie: 5,
-                sab: 6,
-              };
-              return dayMap[s.day as DayOfWeek] === dayOfWeekNumber;
-            }
-            return s.day === dayOfWeekNumber;
-          });
-          if (scheduleForDay) {
-            scheduleForDay.times.forEach((time: string) => {
-              const [hour, minute] = time.split(":");
-
-              const localDate = createLocalDate(
-                day.getFullYear(),
-                day.getMonth() + 1,
-                day.getDate(),
-                parseInt(hour, 10),
-                parseInt(minute, 10)
-              );
-              const classDateTime = localToUTC(localDate);
-
-              generatedClasses.push({
-                id: `gen_${discipline.id}_${format(
-                  localDate,
-                  "yyyy-MM-dd_HH-mm"
-                )}`,
-                organizationId: "org_blacksheep_001",
-                disciplineId: discipline.id,
-                name: discipline.name,
-                dateTime: classDateTime,
-                durationMinutes: 60,
-                instructorId: "inst_default",
-                capacity: 15,
-                registeredParticipantsIds: [],
-                waitlistParticipantsIds: [],
-                status: "scheduled",
-                notes:
-                  "Clase generada dinámicamente desde horarios de disciplina",
-              });
-            });
-          }
-        });
-      });
-
-      setMonthlyClasses(generatedClasses);
-    },
-    [setMonthlyClasses]
-  );
 
   // Función para cargar clases con filtrado por fecha
   const loadClassesForDate = useCallback(async () => {
@@ -204,32 +130,6 @@ export default function AdminClasesPage() {
     loadClassesForDate();
   }, [loadClassesForDate]);
 
-  // CONTEXTO: Generar clases dinámicamente como el calendario
-  useEffect(() => {
-    const now = new Date();
-    setIsGeneratingClasses(true);
-
-    // Si el mes que se ve es anterior al actual
-    if (
-      getYear(selectedDate) < getYear(now) ||
-      (getYear(selectedDate) === getYear(now) &&
-        getMonth(selectedDate) < getMonth(now))
-    ) {
-      // Cargar datos históricos desde la API
-      const start = format(startOfMonth(selectedDate), "yyyy-MM-dd");
-      const end = format(endOfMonth(selectedDate), "yyyy-MM-dd");
-      fetchClassSessions(start, end).then((data) => {
-        setMonthlyClasses(data.classes);
-        setIsGeneratingClasses(false);
-      });
-    } else {
-      // Generar clases para el mes actual o futuro
-      if (disciplines && disciplines.length > 0) {
-        generateClassesForMonth(selectedDate, disciplines);
-        setIsGeneratingClasses(false);
-      }
-    }
-  }, [selectedDate, disciplines, generateClassesForMonth, fetchClassSessions]);
 
   // Manejar cambio de fecha
   const handleDateSelect = useCallback((date: Date) => {
@@ -239,7 +139,7 @@ export default function AdminClasesPage() {
 
   // CONTEXTO: Filtrado inteligente para optimizar performance y UX
   const activeClasses = useMemo(() => {
-    return monthlyClasses
+    return classSessions
       .filter((session: ClassSession) => {
         // Filtrar por fecha seleccionada
         const sessionDate = new Date(session.dateTime);
@@ -252,20 +152,10 @@ export default function AdminClasesPage() {
         // Filtrar clases canceladas
         if (session.status === "cancelled") return false;
 
-        // OPTIMIZACIÓN: Ocultar clases pasadas sin usuarios inscritos
-        const isPastClass = isClassPast(session.dateTime);
-        const hasUsers = session.registeredParticipantsIds.length > 0;
-        const isGenerated = session.id.startsWith("gen_");
-
-        // Si es una clase pasada, generada y sin usuarios, no mostrarla
-        if (isPastClass && isGenerated && !hasUsers) {
-          return false;
-        }
-
         return true;
       })
       .map(convertClassSessionToClassItem);
-  }, [monthlyClasses, selectedDate, convertClassSessionToClassItem]);
+  }, [classSessions, selectedDate, convertClassSessionToClassItem]);
 
   // Implementar paginación correctamente
   const paginatedClasses = useMemo(() => {
@@ -283,27 +173,14 @@ export default function AdminClasesPage() {
 
   const handleCancelClass = async (classId: string) => {
     try {
-      // Buscar la clase en el estado local para verificar si es generada
-      const classToCancel = monthlyClasses.find((cls) => cls.id === classId);
-      const isGenerated = classToCancel?.id.startsWith("gen_") || false;
+      // Para clases reales, usar la API
+      const response = await fetch(`/api/classes/${classId}/admin/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
 
-      if (isGenerated) {
-        // Para clases generadas, solo actualizar el estado local
-        setMonthlyClasses((prev) =>
-          prev.map((cls) =>
-            cls.id === classId ? { ...cls, status: "cancelled" } : cls
-          )
-        );
-      } else {
-        // Para clases reales, usar la API
-        const response = await fetch(`/api/classes/${classId}/admin/cancel`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-
-        if (!response.ok) {
-          throw new Error("Error al cancelar la clase");
-        }
+      if (!response.ok) {
+        throw new Error("Error al cancelar la clase");
       }
 
       toast({
@@ -329,8 +206,8 @@ export default function AdminClasesPage() {
     <div className="p-4 md:p-8 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Gestión de Clases</h1>
-        <div className="text-sm text-muted-foreground">
-          Herramienta operativa para instructores
+        <div className="text-sm text-muted-foreground flex items-center gap-4">
+          <span>Herramienta operativa para instructores</span>
         </div>
       </div>
 

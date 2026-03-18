@@ -71,8 +71,11 @@ export async function POST(
         },
       });
 
-      // Update user's remaining classes if applicable
-      if (user.membership.planConfig.classLimit > 0) {
+      // Update user's remaining classes if applicable (and only if > 0)
+      if (
+        user.membership.planConfig.classLimit > 0 &&
+        user.membership.centerStats.currentMonth.remainingClasses > 0
+      ) {
         await tx.user.update({
           where: { id: userId },
           data: {

@@ -177,152 +177,51 @@ export default function CalendarPage() {
     loadClassesForDate();
   }, [loadClassesForDate]);
 
-  // Lógica para generar y fusionar clases - OPTIMIZADA para solo 3 semanas
-  const unifiedClasses = useMemo(() => {
-    if (!disciplines || disciplines.length === 0) return classSessions;
-    if (!currentUser) return classSessions;
-
-    // Filtrar disciplinas según el plan del usuario
-    const allowedDisciplines = (() => {
-      if (!currentUser.membership) return disciplines;
-
-      const { disciplineAccess, allowedDisciplines: userAllowedDisciplines } =
-        currentUser.membership.planConfig;
-
-      if (disciplineAccess === "all") {
-        return disciplines;
-      } else if (disciplineAccess === "limited" && userAllowedDisciplines) {
-        return disciplines.filter((discipline) =>
-          userAllowedDisciplines.includes(discipline.id)
-        );
-      }
-
-      return disciplines;
-    })();
-
-    const generatedClasses: ClassSession[] = [];
-
-    // OPTIMIZACIÓN: Generar solo para 3 semanas (semana actual + 2 próximas)
-    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 }); // Lunes
-    const threeWeeksEnd = addWeeks(currentWeekStart, 3); // 3 semanas desde hoy
-
-    const daysInRange = eachDayOfInterval({
-      start: currentWeekStart,
-      end: threeWeeksEnd,
-    });
-
-    const dayMapping: DayOfWeek[] = [
-      "dom",
-      "lun",
-      "mar",
-      "mie",
-      "jue",
-      "vie",
-      "sab",
-    ];
-
-    daysInRange.forEach((day) => {
-      const dayOfWeek = dayMapping[getDay(day)];
-      // Usar solo las disciplinas permitidas para el usuario
-      allowedDisciplines.forEach((discipline) => {
-        const scheduleForDay = discipline.schedule?.find(
-          (s) => s.day === dayOfWeek
-        );
-        if (scheduleForDay) {
-          scheduleForDay.times.forEach((time: string) => {
-            const [hour, minute] = time.split(":").map(Number);
-            const classDateTime = new Date(
-              day.getFullYear(),
-              day.getMonth(),
-              day.getDate(),
-              hour,
-              minute
-            );
-
-            generatedClasses.push({
-              id: `gen_${discipline.id}_${format(
-                classDateTime,
-                "yyyy-MM-dd_HH-mm"
-              )}`,
-              organizationId: "org_blacksheep_001",
-              disciplineId: discipline.id,
-              name: discipline.name,
-              dateTime: classDateTime.toISOString(),
-              durationMinutes: 60,
-              instructorId: "inst_vito_001", // Default instructor
-              capacity: 15,
-              registeredParticipantsIds: [],
-              waitlistParticipantsIds: [],
-              status: "scheduled",
-              isGenerated: true,
-            });
-          });
-        }
-      });
-    });
-
-    // OPTIMIZACIÓN: Fusión eficiente de clases generadas y reales
-    const classMap = new Map<string, ClassSession>();
-    const realClassKeys = new Set<string>();
-
-    // 1. Agregar todas las clases reales y guardar una clave única (disciplina + fecha/hora)
-    classSessions.forEach((realClass) => {
-      const realDateTime = new Date(realClass.dateTime);
-      const key = `${realClass.disciplineId}_${format(
-        realDateTime,
-        "yyyy-MM-dd_HH-mm"
-      )}`;
-      realClassKeys.add(key);
-      classMap.set(realClass.id, { ...realClass, isGenerated: false });
-    });
-
-    // 2. Agregar clases generadas solo si no existe una clase real para ese mismo horario
-    generatedClasses.forEach((generatedClass) => {
-      const classDateTime = new Date(generatedClass.dateTime);
-      const classKey = `${generatedClass.disciplineId}_${format(
-        classDateTime,
-        "yyyy-MM-dd_HH-mm"
-      )}`;
-
-      if (!realClassKeys.has(classKey)) {
-        classMap.set(generatedClass.id, generatedClass);
-      }
-    });
-
-    return Array.from(classMap.values());
-  }, [disciplines, classSessions, today, refreshTrigger]);
-
-  // NOTA: Los estados se manejan dinámicamente en convertClassSessionToFormattedItem
-  // para evitar bucles infinitos de actualización
-
   // Manejar cambio de fecha
   const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date);
   }, []);
 
-  // Transformar clases para la fecha seleccionada - MEJORADA con lógica de estados
+  // Transformar clases para la fecha seleccionada
   const getClassesForDate = useCallback(
     (date: Date): FormattedClassItem[] => {
       if (!currentUser) return [];
       const isPastDate = isBefore(date, today);
       const isToday = isSameDay(date, today);
 
-      return unifiedClasses
+      // Determinar disciplinas permitidas
+      const allowedDisciplines = (() => {
+        if (!currentUser.membership) return null;
+        const { disciplineAccess, allowedDisciplines: userAllowedDisciplines } =
+          currentUser.membership.planConfig;
+        
+        if (disciplineAccess === "limited" && userAllowedDisciplines) {
+          return userAllowedDisciplines;
+        }
+        return "all";
+      })();
+
+      return classSessions
         .filter((session) => {
           const sessionDate = new Date(session.dateTime);
           if (!isSameDay(sessionDate, date)) return false;
 
-          // Lógica mejorada para días pasados: solo mostrar clases a las que se inscribió
+          // Filtrar por disciplinas permitidas
+          if (allowedDisciplines !== "all" && allowedDisciplines !== null) {
+            if (!allowedDisciplines.includes(session.disciplineId)) return false;
+          }
+
+          // Lógica para días pasados: mostrar solo clases inscritas
           if (isPastDate) {
             return session.registeredParticipantsIds.includes(currentUser.id);
           }
 
-          // Para hoy: mostrar todas las clases (scheduled, in_progress, completed)
+          // Para hoy: mostrar clases no canceladas
           if (isToday) {
             return session.status !== "cancelled";
           }
 
-          // Para futuro: mostrar solo clases programadas
+          // Para futuro: mostrar clases programadas
           return session.status === "scheduled";
         })
         .sort((a, b) => {
@@ -332,7 +231,7 @@ export default function CalendarPage() {
         })
         .map(convertClassSessionToFormattedItem);
     },
-    [unifiedClasses, convertClassSessionToFormattedItem, currentUser, today]
+    [classSessions, convertClassSessionToFormattedItem, currentUser, today]
   );
 
   const currentClasses = getClassesForDate(selectedDate);
@@ -391,31 +290,7 @@ export default function CalendarPage() {
     if (!selectedClass || !currentUser) return;
 
     try {
-      // Si es una clase generada, primero crearla en la base de datos
-      let classId = selectedClass.id;
-      if (selectedClass.id.startsWith("gen_")) {
-        const createPayload = {
-          startDate: selectedClass.dateTime.split("T")[0],
-          endDate: selectedClass.dateTime.split("T")[0],
-          disciplineId: selectedClass.id.split("_")[1], // Extraer disciplineId del ID generado
-          instructorId: "inst_default",
-          time: selectedClass.dateTime.split("T")[1].substring(0, 5),
-          maxCapacity: 15,
-        };
-
-        const createResponse = await fetch("/api/classes/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(createPayload),
-        });
-
-        if (createResponse.ok) {
-          const createResult = await createResponse.json();
-          classId = createResult.classes[0].id;
-        } else {
-          throw new Error("Error al crear la clase");
-        }
-      }
+      const classId = selectedClass.id;
 
       // Registrar al usuario en la clase
       const response = await fetch(`/api/classes/${classId}/register`, {
@@ -450,16 +325,6 @@ export default function CalendarPage() {
     if (!selectedClass || !currentUser) return;
 
     try {
-      // Verificar que la clase existe y no es generada
-      if (selectedClass.id.startsWith("gen_")) {
-        toast({
-          title: "Error",
-          description: "No se puede cancelar una clase no registrada.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       // Verificar reglas de cancelación
       const discipline = disciplines?.find(
         (d) => selectedClass.name === d.name || selectedClass.id.includes(d.id)
